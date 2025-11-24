@@ -45,6 +45,23 @@ pub fn send(connection: *Connection, arena: Allocator) !void {
         }
     }
 
+    if (player.sync.materials_changed) {
+        var material_list = try arena.alloc(pb.MaterialInfo, player.material_map.count());
+        var i: usize = 0;
+        var iterator = player.material_map.iterator();
+
+        while (iterator.next()) |kv| : (i += 1) {
+            material_list[i] = .{
+                .id = kv.key_ptr.*,
+                .count = kv.value_ptr.*,
+            };
+        }
+        if (notify.item == null) {
+            notify.item = .default;
+        }
+        notify.item.?.material_list = material_list;
+    }
+
     connection.write(notify, 0) catch {};
 
     if (player.sync.new_avatars.count() != 0) {

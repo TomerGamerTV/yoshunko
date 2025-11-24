@@ -8724,6 +8724,10 @@ pub const AvatarUnlockAwakeCsReq = struct {
     pub const default: @This() = .{};
     avatar_id: u32 = 0,
 };
+pub const AvatarUnlockAwakeScRsp = struct {
+    pub const default: @This() = .{};
+    retcode: i32 = 0,
+};
 pub const HJFFKBGGGKL = struct {
     pub const default: @This() = .{};
     retcode: i32 = 0,
@@ -32200,6 +32204,10 @@ pub const AvatarSetAwakeCsReq = struct {
     is_awake_enabled: bool = false,
     awake_id: u32 = 0,
     avatar_id: u32 = 0,
+};
+pub const AvatarSetAwakeScRsp = struct {
+    pub const default: @This() = .{};
+    retcode: i32 = 0,
 };
 pub const AJEJIMMJFKB = struct {
     pub const default: @This() = .{};

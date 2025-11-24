@@ -166,3 +166,70 @@ pub fn onAvatarSkinUnDressCsReq(context: *network.Context, request: pb.AvatarSki
 
     retcode = 0;
 }
+
+pub fn onAvatarUnlockAwakeCsReq(context: *network.Context, request: pb.AvatarUnlockAwakeCsReq) !void {
+    var retcode: i32 = 1;
+    defer context.respond(pb.AvatarUnlockAwakeScRsp{ .retcode = retcode }) catch {};
+    defer if (retcode == 0) context.connection.flushSync(context.arena) catch {};
+
+    const player = try context.connection.getPlayer();
+    const avatar = player.avatar_map.getPtr(request.avatar_id) orelse return error.NoSuchAvatar;
+
+    const config = context.tmpl.getAvatarTemplateConfig(request.avatar_id) orelse return error.MissingAvatarConfig;
+
+    var awake_id: u32 = 0;
+    var i: u8 = 0;
+    while (config.special_awaken_templates[i]) |template| : (i += 1) {
+        if (template.id > avatar.awake_id) {
+            awake_id = template.id;
+
+            for (template.upgrade_item_ids) |upgrade_item_id| {
+                const material_count = player.material_map.get(upgrade_item_id) orelse return error.PlayerMissingUpgradeItem;
+                if (material_count < 1) {
+                    return error.PlayerMissingUpgradeItem;
+                }
+            }
+
+            for (template.upgrade_item_ids) |upgrade_item_id| {
+                const material_ptr = player.material_map.getPtr(upgrade_item_id) orelse return error.PlayerMissingUpgradeItem;
+                material_ptr.* = material_ptr.* - 1;
+            }
+
+            break;
+        }
+        if (i == config.special_awaken_templates.len - 1) break;
+    }
+
+    if (awake_id == 0) {
+        return error.MissingNextAvatarAwake;
+    }
+
+    if (avatar.awake_id == 0) {
+        avatar.*.is_awake_available = true;
+        avatar.*.is_awake_enabled = true;
+    }
+    avatar.*.awake_id = awake_id;
+
+    player.sync.materials_changed = true;
+    try player.sync.changed_avatars.put(context.gpa, request.avatar_id, {});
+
+    retcode = 0;
+}
+
+pub fn onAvatarSetAwakeCsReq(context: *network.Context, request: pb.AvatarSetAwakeCsReq) !void {
+    var retcode: i32 = 1;
+    defer context.respond(pb.AvatarSetAwakeScRsp{ .retcode = retcode }) catch {};
+    defer if (retcode == 0) context.connection.flushSync(context.arena) catch {};
+
+    const player = try context.connection.getPlayer();
+    const avatar = player.avatar_map.getPtr(request.avatar_id) orelse return error.NoSuchAvatar;
+
+    if (avatar.awake_id == 0) {
+        return error.NoAwakeUnlocked;
+    }
+
+    avatar.is_awake_enabled = request.is_awake_enabled;
+    try player.sync.changed_avatars.put(context.gpa, request.avatar_id, {});
+
+    retcode = 0;
+}

@@ -1205,7 +1205,7 @@ pub const IFPENHNEFCK = struct {
     pub const IKPBJDMLOPF_field_desc: struct{ u32, u32 } = .{2, 0};
     pub const GOGEEHAHMCP_field_desc: struct{ u32, u32 } = .{3, 0};
 };
-pub const ANOMCAEDBBL = struct {
+pub const AvatarSetAwakeCsReq = struct {
     pub const cmd_id: u16 = 3690;
     pub const is_awake_enabled_field_desc: struct{ u32, u32 } = .{2, 0};
     pub const awake_id_field_desc: struct{ u32, u32 } = .{3, 1198};
@@ -11741,7 +11741,7 @@ pub const DIDHAJMCDOH = struct {
     pub const OPBEHLFHPOJ_field_desc: struct{ u32, u32 } = .{14, 8389};
     pub const NFDIOGDOJIG_field_desc: struct{ u32, u32 } = .{15, 0};
 };
-pub const HNHNMDHLDAB = struct {
+pub const AvatarUnlockAwakeCsReq = struct {
     pub const cmd_id: u16 = 5983;
     pub const avatar_id_field_desc: struct{ u32, u32 } = .{10, 14389};
 };
