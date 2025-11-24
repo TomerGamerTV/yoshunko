@@ -1,10 +1,11 @@
 const Player = @This();
 const std = @import("std");
-const pb = @import("proto").pb;
+const proto = @import("proto");
+const pb = proto.pb;
 const common = @import("common");
 const uid = @import("uid.zig");
 const file_util = @import("file_util.zig");
-const TemplateCollection = @import("../data/TemplateCollection.zig");
+const Assets = @import("../data/Assets.zig");
 
 const Avatar = @import("Avatar.zig");
 const Weapon = @import("Weapon.zig");
@@ -15,6 +16,9 @@ const Hall = @import("Hall.zig");
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const FileSystem = common.FileSystem;
+
+const EventConfig = Assets.EventGraphCollection.EventConfig;
+
 const log = std.log.scoped(.player);
 
 pub const BasicInfo = struct {
@@ -46,6 +50,7 @@ equip_map: std.AutoArrayHashMapUnmanaged(u32, Equip),
 material_map: std.AutoArrayHashMapUnmanaged(u32, i32),
 hall: Hall,
 cur_section: ?Hall.Section = null,
+active_npcs: std.AutoArrayHashMapUnmanaged(u32, Hall.Npc) = .empty,
 
 pub const Sync = struct {
     fn HashSet(comptime T: type) type {
@@ -58,6 +63,34 @@ pub const Sync = struct {
         .{ Equip, .changed_equips },
     };
 
+    pub const ClientEvent = struct {
+        arena: std.heap.ArenaAllocator,
+        actions: std.ArrayList(pb.ActionInfo) = .empty,
+
+        pub fn init(gpa: Allocator) ClientEvent {
+            return .{ .arena = .init(gpa) };
+        }
+
+        pub fn deinit(event: *ClientEvent) void {
+            event.arena.deinit();
+        }
+
+        pub fn add(event: *ClientEvent, id: u32, action_type: pb.ActionType, action: anytype) !void {
+            const allocator = event.arena.allocator();
+
+            const data = try action.toProto(allocator);
+            var allocating = Io.Writer.Allocating.init(allocator);
+            errdefer allocating.deinit();
+            try proto.encodeMessage(&allocating.writer, data, proto.pb.desc_action);
+
+            try event.actions.append(allocator, .{
+                .action_id = id,
+                .action_type = action_type,
+                .body = allocating.written(),
+            });
+        }
+    };
+
     basic_info_changed: bool = false,
     changed_avatars: HashSet(u32) = .empty,
     new_avatars: HashSet(u32) = .empty,
@@ -67,6 +100,7 @@ pub const Sync = struct {
     in_scene_transition: bool = false,
     pending_section_switch: ?u32 = null,
     hall_refresh: bool = false,
+    client_events: std.ArrayList(ClientEvent) = .empty,
 
     pub fn reset(sync: *Sync) void {
         sync.basic_info_changed = false;
@@ -78,6 +112,9 @@ pub const Sync = struct {
         sync.in_scene_transition = false;
         sync.pending_section_switch = null;
         sync.hall_refresh = false;
+
+        for (sync.client_events.items) |*event| event.deinit();
+        sync.client_events.clearRetainingCapacity();
     }
 
     pub fn setChanges(sync: *Sync, comptime T: type, gpa: Allocator, unique_id: u32) !void {
@@ -177,18 +214,32 @@ pub fn reloadFile(
 
         player.hall.deinit(gpa);
         player.hall = new_hall;
+    } else if (std.mem.startsWith(u8, path, "hall/")) {
+        var base_path = std.mem.tokenizeScalar(u8, path["hall/".len..], '/');
+        const section_id = std.fmt.parseInt(u32, base_path.next() orelse return, 10) catch return;
+        if (player.hall.section_id != section_id) return;
+
+        const npc_id = std.fmt.parseInt(u32, base_path.next() orelse return, 10) catch return;
+        const new_npc = try file_util.parseZon(Hall.Npc, gpa, content);
+
+        if (player.active_npcs.fetchSwapRemove(npc_id)) |*old_npc| {
+            old_npc.value.deinit(gpa);
+        }
+
+        try player.active_npcs.put(gpa, npc_id, new_npc);
+        player.sync.hall_refresh = true;
     }
 }
 
-pub fn loadOrCreate(gpa: Allocator, fs: *FileSystem, tmpl: *const TemplateCollection, player_uid: u32) !Player {
+pub fn loadOrCreate(gpa: Allocator, fs: *FileSystem, assets: *const Assets, player_uid: u32) !Player {
     var arena = std.heap.ArenaAllocator.init(gpa);
     defer arena.deinit();
 
     const basic_info = try file_util.loadOrCreateZon(BasicInfo, gpa, arena.allocator(), fs, "player/{}/info", .{player_uid});
-    const avatar_map = try loadItems(Avatar, gpa, fs, tmpl, player_uid, false);
-    const weapon_map = try loadItems(Weapon, gpa, fs, tmpl, player_uid, true);
-    const equip_map = try loadItems(Equip, gpa, fs, tmpl, player_uid, true);
-    const material_map = try Material.loadAll(gpa, fs, tmpl, player_uid);
+    const avatar_map = try loadItems(Avatar, gpa, fs, assets, player_uid, false);
+    const weapon_map = try loadItems(Weapon, gpa, fs, assets, player_uid, true);
+    const equip_map = try loadItems(Equip, gpa, fs, assets, player_uid, true);
+    const material_map = try Material.loadAll(gpa, fs, assets, player_uid);
     const hall = try file_util.loadOrCreateZon(Hall, gpa, arena.allocator(), fs, "player/{}/hall/info", .{player_uid});
 
     return .{
@@ -202,7 +253,7 @@ pub fn loadOrCreate(gpa: Allocator, fs: *FileSystem, tmpl: *const TemplateCollec
     };
 }
 
-pub fn performHallTransition(player: *Player, gpa: Allocator, fs: *FileSystem, tmpl: *const TemplateCollection) !void {
+pub fn performHallTransition(player: *Player, gpa: Allocator, fs: *FileSystem, assets: *const Assets) !void {
     var temp_allocator = std.heap.ArenaAllocator.init(gpa);
     defer temp_allocator.deinit();
     const arena = temp_allocator.allocator();
@@ -211,7 +262,7 @@ pub fn performHallTransition(player: *Player, gpa: Allocator, fs: *FileSystem, t
     const section = if (try fs.readFile(arena, section_path)) |content|
         try file_util.parseZon(Hall.Section, gpa, content)
     else blk: {
-        const section_template = tmpl.getConfigByKey(
+        const section_template = assets.templates.getConfigByKey(
             .section_config_template_tb,
             player.hall.section_id,
         ) orelse return error.InvalidSectionID;
@@ -222,21 +273,139 @@ pub fn performHallTransition(player: *Player, gpa: Allocator, fs: *FileSystem, t
     };
 
     if (player.cur_section) |prev_section| prev_section.deinit(gpa);
-
     player.cur_section = section;
+
+    const new_npcs = try loadNpcs(gpa, fs, player.player_uid, player.hall.section_id);
+    freeMap(gpa, &player.active_npcs);
+    player.active_npcs = new_npcs;
+
+    for (assets.graphs.main_city.sections) |section_cfg| {
+        if (section_cfg.id != player.hall.section_id) continue;
+
+        for (section_cfg.events) |event| {
+            if (std.mem.findScalar(u32, section_cfg.on_enter, event.id) != null) {
+                try player.runEvent(gpa, fs, assets, &event);
+            }
+        }
+
+        break;
+    }
+
     player.sync.in_scene_transition = true;
+}
+
+pub fn interactWithUnit(player: *Player, gpa: Allocator, fs: *FileSystem, assets: *const Assets, npc_id: u32, interact_id: u32) !void {
+    const npc = player.active_npcs.getPtr(npc_id) orelse return error.NoSuchUnit;
+    if (npc.interacts[1] == null or npc.interacts[1].?.id != interact_id) return error.NoSuchInteract;
+    const interact_graph = assets.graphs.interacts.get(interact_id) orelse return error.MissingInteractGraph;
+
+    for (interact_graph.events) |event| {
+        if (std.mem.findScalar(u32, interact_graph.on_interact, event.id) != null) {
+            try player.runEvent(gpa, fs, assets, &event);
+        }
+    }
+}
+
+// TODO: move this somewhere out of Player?
+pub fn runEvent(player: *Player, gpa: Allocator, fs: *FileSystem, assets: *const Assets, event: *const EventConfig) !void {
+    var temp_allocator = std.heap.ArenaAllocator.init(gpa);
+    defer temp_allocator.deinit();
+    const arena = temp_allocator.allocator();
+
+    for (event.actions) |action| {
+        switch (action.action) {
+            .create_npc => |config| {
+                const npc: Hall.Npc = .{};
+                try saveNpc(arena, fs, player.player_uid, player.hall.section_id, config.tag_id, npc);
+
+                try player.active_npcs.put(gpa, config.tag_id, npc);
+            },
+            .change_interact => |config| {
+                for (config.tag_ids) |tag_id| {
+                    const npc = player.active_npcs.getPtr(tag_id) orelse continue;
+                    const template = assets.templates.getConfigByKey(.main_city_object_template_tb, tag_id) orelse {
+                        log.err("missing config for npc with tag {}", .{tag_id});
+                        continue;
+                    };
+
+                    if (npc.interacts[1]) |*interact| interact.deinit(gpa);
+
+                    const participators = try gpa.alloc(Hall.Interact.Participator, 1);
+                    participators[0] = .{ .id = 102201, .name = try gpa.dupe(u8, "A") };
+                    npc.interacts[1] = .{
+                        .name = try gpa.dupe(u8, template.interact_name),
+                        .scale = @splat(1),
+                        .tag_id = tag_id,
+                        .participators = participators,
+                        .id = config.interact_id,
+                    };
+
+                    try saveNpc(arena, fs, player.player_uid, player.hall.section_id, tag_id, npc.*);
+                }
+            },
+            else => {},
+        }
+
+        switch (action.action) {
+            inline else => |config| {
+                if (@hasDecl(@TypeOf(config), "toProto")) {
+                    var client_event = Sync.ClientEvent.init(gpa);
+                    errdefer client_event.deinit();
+
+                    try client_event.add(action.id, @enumFromInt(@intFromEnum(action.action)), config);
+                    try player.sync.client_events.append(gpa, client_event);
+                }
+            },
+        }
+    }
+}
+
+fn saveNpc(arena: Allocator, fs: *FileSystem, player_uid: u32, section_id: u32, npc_id: u32, npc: Hall.Npc) !void {
+    const npc_zon = try file_util.serializeZon(arena, npc);
+    const npc_path = try std.fmt.allocPrint(
+        arena,
+        "player/{}/hall/{}/{}",
+        .{ player_uid, section_id, npc_id },
+    );
+    try fs.writeFile(npc_path, npc_zon);
+}
+
+fn loadNpcs(gpa: Allocator, fs: *FileSystem, player_uid: u32, section_id: u32) !std.AutoArrayHashMapUnmanaged(u32, Hall.Npc) {
+    var temp_allocator = std.heap.ArenaAllocator.init(gpa);
+    defer temp_allocator.deinit();
+    const arena = temp_allocator.allocator();
+
+    var map: std.AutoArrayHashMapUnmanaged(u32, Hall.Npc) = .empty;
+    errdefer freeMap(gpa, &map);
+
+    const section_dir = try std.fmt.allocPrint(arena, "player/{}/hall/{}", .{ player_uid, section_id });
+    if (try fs.readDir(section_dir)) |dir| {
+        defer dir.deinit();
+
+        for (dir.entries) |entry| if (entry.kind == .file) {
+            const tag_id = std.fmt.parseInt(u32, entry.basename(), 10) catch continue;
+            const npc = file_util.loadZon(Hall.Npc, gpa, arena, fs, "player/{}/hall/{}/{}", .{ player_uid, section_id, tag_id }) catch {
+                log.err("failed to load NPC with id {} from section {}", .{ tag_id, section_id });
+                continue;
+            } orelse continue;
+
+            try map.put(gpa, tag_id, npc);
+        };
+    }
+
+    return map;
 }
 
 fn loadItems(
     comptime Item: type,
     gpa: Allocator,
     fs: *FileSystem,
-    tmpl: *const TemplateCollection,
+    assets: *const Assets,
     player_uid: u32,
     comptime uses_incr_uid: bool,
 ) !std.AutoArrayHashMapUnmanaged(u32, Item) {
     var map: std.AutoArrayHashMapUnmanaged(u32, Item) = .empty;
-    errdefer map.deinit(gpa);
+    errdefer freeMap(gpa, &map);
 
     var temp_allocator = std.heap.ArenaAllocator.init(gpa);
     defer temp_allocator.deinit();
@@ -256,7 +425,7 @@ fn loadItems(
             try map.put(gpa, unique_id, item);
         };
     } else {
-        try Item.addDefaults(gpa, tmpl, &map);
+        try Item.addDefaults(gpa, assets, &map);
 
         var iterator = map.iterator();
         var highest_uid: u32 = 0;
@@ -286,6 +455,7 @@ pub fn deinit(player: *Player, gpa: Allocator) void {
     freeMap(gpa, &player.weapon_map);
     freeMap(gpa, &player.equip_map);
     player.material_map.deinit(gpa);
+    freeMap(gpa, &player.active_npcs);
 }
 
 fn freeMap(gpa: Allocator, map: anytype) void {

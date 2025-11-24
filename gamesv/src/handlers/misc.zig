@@ -5,7 +5,7 @@ const network = @import("../network.zig");
 pub fn onGetMiscDataCsReq(context: *network.Context, _: pb.GetMiscDataCsReq) !void {
     errdefer context.respond(pb.GetMiscDataScRsp{ .retcode = 1 }) catch {};
     const player = try context.connection.getPlayer();
-    const tmpl = context.tmpl;
+    const templates = context.connection.assets.templates;
 
     var data: pb.MiscData = .{
         .unlock = .default,
@@ -19,8 +19,8 @@ pub fn onGetMiscDataCsReq(context: *network.Context, _: pb.GetMiscDataCsReq) !vo
         },
     };
 
-    var unlocked_list = try context.arena.alloc(i32, tmpl.unlock_config_template_tb.payload.data.len);
-    for (tmpl.unlock_config_template_tb.payload.data, 0..) |template, i| {
+    var unlocked_list = try context.arena.alloc(i32, templates.unlock_config_template_tb.payload.data.len);
+    for (templates.unlock_config_template_tb.payload.data, 0..) |template, i| {
         unlocked_list[i] = @intCast(template.id);
     }
 

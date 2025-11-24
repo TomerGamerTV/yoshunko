@@ -1,7 +1,7 @@
 const Weapon = @This();
 const std = @import("std");
 const pb = @import("proto").pb;
-const TemplateCollection = @import("../data/TemplateCollection.zig");
+const Assets = @import("../data/Assets.zig");
 
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
@@ -32,8 +32,8 @@ pub fn toProto(weapon: *const Weapon, uid: u32, gpa: Allocator) !pb.WeaponInfo {
     };
 }
 
-pub fn addDefaults(gpa: Allocator, tmpl: *const TemplateCollection, map: *std.AutoArrayHashMapUnmanaged(u32, Weapon)) !void {
-    for (tmpl.weapon_template_tb.payload.data, 1..) |weapon_tmpl, uid| {
+pub fn addDefaults(gpa: Allocator, assets: *const Assets, map: *std.AutoArrayHashMapUnmanaged(u32, Weapon)) !void {
+    for (assets.templates.weapon_template_tb.payload.data, 1..) |weapon_tmpl, uid| {
         const weapon: Weapon = .{
             .id = weapon_tmpl.item_id,
             .level = 60,

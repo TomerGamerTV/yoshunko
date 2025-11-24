@@ -1,7 +1,7 @@
 const Equip = @This();
 const std = @import("std");
 const pb = @import("proto").pb;
-const TemplateCollection = @import("../data/TemplateCollection.zig");
+const Assets = @import("../data/Assets.zig");
 
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
@@ -64,8 +64,8 @@ pub const Property = struct {
     add_value: u32,
 };
 
-pub fn addDefaults(gpa: Allocator, tmpl: *const TemplateCollection, map: *std.AutoArrayHashMapUnmanaged(u32, Equip)) !void {
+pub fn addDefaults(gpa: Allocator, assets: *const Assets, map: *std.AutoArrayHashMapUnmanaged(u32, Equip)) !void {
     _ = gpa;
-    _ = tmpl;
+    _ = assets;
     _ = map;
 }

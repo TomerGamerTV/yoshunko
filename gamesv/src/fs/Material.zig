@@ -1,6 +1,6 @@
 const std = @import("std");
 const FileSystem = @import("common").FileSystem;
-const TemplateCollection = @import("../data/TemplateCollection.zig");
+const Assets = @import("../data/Assets.zig");
 const file_util = @import("file_util.zig");
 
 const Allocator = std.mem.Allocator;
@@ -8,7 +8,7 @@ const Allocator = std.mem.Allocator;
 pub fn loadAll(
     gpa: Allocator,
     fs: *FileSystem,
-    tmpl: ?*const TemplateCollection,
+    assets: ?*const Assets,
     player_uid: u32,
 ) !std.AutoArrayHashMapUnmanaged(u32, i32) {
     var map: std.AutoArrayHashMapUnmanaged(u32, i32) = .empty;
@@ -25,8 +25,8 @@ pub fn loadAll(
             try map.put(gpa, id, count);
         }
     } else {
-        if (tmpl) |templates| {
-            try addDefaults(gpa, templates, &map);
+        if (assets) |a| {
+            try addDefaults(gpa, a, &map);
             try saveAll(arena, fs, player_uid, &map);
         }
     }
@@ -48,11 +48,12 @@ pub fn saveAll(arena: Allocator, fs: *FileSystem, player_uid: u32, map: *const s
     try fs.writeFile(try std.fmt.allocPrint(arena, "player/{}/materials", .{player_uid}), materials);
 }
 
-fn addDefaults(gpa: Allocator, tmpl: *const TemplateCollection, map: *std.AutoArrayHashMapUnmanaged(u32, i32)) !void {
-    for (tmpl.avatar_skin_base_template_tb.payload.data) |skin_template| {
+fn addDefaults(gpa: Allocator, assets: *const Assets, map: *std.AutoArrayHashMapUnmanaged(u32, i32)) !void {
+    for (assets.templates.avatar_skin_base_template_tb.payload.data) |skin_template| {
         try map.put(gpa, skin_template.id, 1);
     }
-    for (tmpl.avatar_special_awaken_template_tb.payload.data) |awaken_template| {
+
+    for (assets.templates.avatar_special_awaken_template_tb.payload.data) |awaken_template| {
         for (awaken_template.upgrade_item_ids) |upgrade_item_id| {
             const old_val = try map.getOrPutValue(gpa, upgrade_item_id, 0);
             old_val.value_ptr.* = old_val.value_ptr.* + 1;

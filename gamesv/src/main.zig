@@ -1,7 +1,7 @@
 const std = @import("std");
 const common = @import("common");
 const network = @import("network.zig");
-const TemplateCollection = @import("data/TemplateCollection.zig");
+const Assets = @import("data/Assets.zig");
 const native_os = @import("builtin").os.tag;
 
 const Io = std.Io;
@@ -15,12 +15,12 @@ const fs_root: []const u8 = "state";
 fn init(gpa: Allocator, io: Io) u8 {
     const log = std.log.scoped(.init);
 
-    var tmpl = TemplateCollection.load(gpa, io) catch |err| {
-        log.err("failed to load templates: {t}", .{err});
+    var assets = Assets.init(gpa, io) catch |err| {
+        log.err("failed to load assets: {t}", .{err});
         return 1;
     };
 
-    defer tmpl.deinit();
+    defer assets.deinit(gpa);
 
     var fs = FileSystem.init(gpa, io, fs_root) catch |err| {
         log.err("failed to open filesystem at '{s}': {}", .{ fs_root, err });
@@ -66,7 +66,13 @@ fn init(gpa: Allocator, io: Io) u8 {
                     unreachable; // errors shouldn't be possible since first of all concurrency IS available and the space for future was freed by previous call.
 
                 const stream = fallible catch continue;
-                futures.concurrent(gpa, io, .close, network.processConnection, .{ gpa, io, &fs, &tmpl, stream }) catch |err| {
+                futures.concurrent(
+                    gpa,
+                    io,
+                    .close,
+                    network.processConnection,
+                    .{ gpa, io, &fs, &assets, stream },
+                ) catch |err| {
                     switch (err) {
                         error.OutOfMemory => stream.close(io),
                         error.ConcurrencyUnavailable => unreachable, // not possible at this point

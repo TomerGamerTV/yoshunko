@@ -5,7 +5,6 @@ const Player = @import("fs/Player.zig");
 const Avatar = @import("fs/Avatar.zig");
 const Weapon = @import("fs/Weapon.zig");
 const Equip = @import("fs/Equip.zig");
-const TemplateCollection = @import("data/TemplateCollection.zig");
 const Connection = @import("network.zig").Connection;
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
@@ -16,7 +15,7 @@ const player_sync_fields = .{
     .{ Equip, .{ .item, .equip_list, pb.EquipInfo } },
 };
 
-pub fn send(connection: *Connection, arena: Allocator, tmpl: *const TemplateCollection) !void {
+pub fn send(connection: *Connection, arena: Allocator) !void {
     const log = std.log.scoped(.sync);
 
     const player = connection.getPlayer() catch return;
@@ -61,6 +60,14 @@ pub fn send(connection: *Connection, arena: Allocator, tmpl: *const TemplateColl
             },
         }
 
+        const npc_list = try arena.alloc(pb.NpcInfo, player.active_npcs.count());
+        var npcs = player.active_npcs.iterator();
+        var i: usize = 0;
+        while (npcs.next()) |kv| : (i += 1) {
+            npc_list[i] = try kv.value_ptr.toProto(arena, kv.key_ptr.*);
+        }
+
+        hall_scene_data.npc_list = npc_list;
         connection.write(pb.EnterSceneScNotify{ .scene = .{
             .scene_type = 1,
             .hall_scene_data = hall_scene_data,
@@ -68,7 +75,7 @@ pub fn send(connection: *Connection, arena: Allocator, tmpl: *const TemplateColl
     }
 
     if (player.sync.pending_section_switch) |next_section_id| blk: {
-        const transform_id = tmpl.getSectionDefaultTransform(next_section_id) orelse {
+        const transform_id = connection.assets.templates.getSectionDefaultTransform(next_section_id) orelse {
             log.err("section with id {} doesn't exist", .{next_section_id});
             break :blk;
         };
@@ -85,13 +92,27 @@ pub fn send(connection: *Connection, arena: Allocator, tmpl: *const TemplateColl
             .section_id = player.hall.section_id,
             .owner_type = .scene,
             .action_list = &.{.{
-                .action_type = .SWITCH_SECTION,
+                .action_type = .switch_section,
                 .body = allocating.written(),
             }},
         }, 0) catch {};
     }
 
+    for (player.sync.client_events.items) |client_event| {
+        connection.write(pb.SectionEventScNotify{
+            .section_id = player.hall.section_id,
+            .action_list = client_event.actions.items,
+        }, 0) catch {};
+    }
+
     if (player.sync.hall_refresh) {
+        const npc_list = try arena.alloc(pb.NpcInfo, player.active_npcs.count());
+        var npcs = player.active_npcs.iterator();
+        var i: usize = 0;
+        while (npcs.next()) |kv| : (i += 1) {
+            npc_list[i] = try kv.value_ptr.toProto(arena, kv.key_ptr.*);
+        }
+
         connection.write(pb.HallRefreshScNotify{
             .force_refresh = true,
             .section_id = player.hall.section_id,
@@ -99,6 +120,7 @@ pub fn send(connection: *Connection, arena: Allocator, tmpl: *const TemplateColl
             .control_guise_avatar_id = player.basic_info.control_guise_avatar_id,
             .scene_time_in_minutes = player.hall.time_in_minutes,
             .day_of_week = player.hall.day_of_week,
+            .npc_list = npc_list,
         }, 0) catch {};
     }
 }

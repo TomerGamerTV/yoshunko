@@ -175,7 +175,8 @@ pub fn onAvatarUnlockAwakeCsReq(context: *network.Context, request: pb.AvatarUnl
     const player = try context.connection.getPlayer();
     const avatar = player.avatar_map.getPtr(request.avatar_id) orelse return error.NoSuchAvatar;
 
-    const config = context.tmpl.getAvatarTemplateConfig(request.avatar_id) orelse return error.MissingAvatarConfig;
+    const config = context.connection.assets.templates.getAvatarTemplateConfig(request.avatar_id) orelse
+        return error.MissingAvatarConfig;
 
     var awake_id: u32 = 0;
     var i: u8 = 0;

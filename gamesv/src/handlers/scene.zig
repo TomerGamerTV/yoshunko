@@ -45,15 +45,32 @@ pub fn onEnterSectionCsReq(context: *network.Context, request: pb.EnterSectionCs
 fn switchSection(context: *network.Context, player: *Player) !void {
     const log = std.log.scoped(.section_switch);
 
-    player.performHallTransition(context.gpa, context.fs, context.tmpl) catch |err| switch (err) {
+    player.performHallTransition(context.gpa, context.fs, context.connection.assets) catch |err| switch (err) {
         error.InvalidSectionID => {
             log.err(
                 "section id {} is invalid, falling back to default section ({})",
                 .{ player.hall.section_id, Hall.default_section_id },
             );
             player.hall.section_id = Hall.default_section_id;
-            try player.performHallTransition(context.gpa, context.fs, context.tmpl);
+            try player.performHallTransition(context.gpa, context.fs, context.connection.assets);
         },
         else => return err,
     };
+}
+
+pub fn onInteractWithUnitCsReq(context: *network.Context, request: pb.InteractWithUnitCsReq) !void {
+    var retcode: i32 = 1;
+    defer context.respond(pb.InteractWithUnitScRsp{ .retcode = retcode }) catch {};
+    defer if (retcode == 0) context.connection.flushSync(context.arena) catch {};
+
+    const player = try context.connection.getPlayer();
+    try player.interactWithUnit(
+        context.gpa,
+        context.fs,
+        context.connection.assets,
+        @intCast(request.npc_tag_id),
+        @intCast(request.interact_id),
+    );
+
+    retcode = 0;
 }

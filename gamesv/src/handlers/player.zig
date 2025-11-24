@@ -81,7 +81,7 @@ pub fn onPlayerLoginCsReq(context: *network.Context, _: pb.PlayerLoginCsReq) !vo
     const player = try Player.loadOrCreate(
         context.gpa,
         context.fs,
-        context.tmpl,
+        context.connection.assets,
         context.connection.player_uid orelse return error.Unauthenticated,
     );
 

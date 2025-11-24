@@ -1,7 +1,7 @@
 const Avatar = @This();
 const std = @import("std");
 const pb = @import("proto").pb;
-const TemplateCollection = @import("../data/TemplateCollection.zig");
+const Assets = @import("../data/Assets.zig");
 
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
@@ -123,12 +123,8 @@ pub const SkillLevel = struct {
     };
 };
 
-pub fn addDefaults(gpa: Allocator, tmpl: *const TemplateCollection, map: *std.AutoArrayHashMapUnmanaged(u32, Avatar)) !void {
-    for (tmpl.avatar_base_template_tb.payload.data) |avatar_tmpl| {
-        if (avatar_tmpl.camp == 0) continue;
-        const avatar: Avatar = .default;
-        // TODO: set awake stuff, if needed
-
-        try map.put(gpa, avatar_tmpl.id, avatar);
+pub fn addDefaults(gpa: Allocator, assets: *const Assets, map: *std.AutoArrayHashMapUnmanaged(u32, Avatar)) !void {
+    for (assets.templates.avatar_base_template_tb.payload.data) |template| {
+        if (template.camp != 0) try map.put(gpa, template.id, .default);
     }
 }

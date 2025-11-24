@@ -1,0 +1,23 @@
+.{
+    .sections = .{
+        .{
+            .id = 151,
+            .on_enter = .{300},
+            .events = .{.{
+                .id = 300,
+                .actions = .{
+                    .{
+                        .id = 301,
+                        .action = .{ .create_npc = .{ .tag_id = 102201 } },
+                    },
+                    .{ .id = 302, .action = .{
+                        .change_interact = .{
+                            .tag_ids = .{102201},
+                            .interact_id = 15001103,
+                        },
+                    } },
+                },
+            }},
+        },
+    },
+}

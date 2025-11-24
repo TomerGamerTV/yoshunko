@@ -7,11 +7,11 @@ const sync = @import("sync.zig");
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const FileSystem = common.FileSystem;
-const TemplateCollection = @import("data/TemplateCollection.zig");
+const Assets = @import("data/Assets.zig");
 
 const xorpad_len: usize = 4096;
 
-pub fn processConnection(gpa: Allocator, io: Io, fs: *FileSystem, tmpl: *const TemplateCollection, stream: Io.net.Stream) !void {
+pub fn processConnection(gpa: Allocator, io: Io, fs: *FileSystem, assets: *const Assets, stream: Io.net.Stream) !void {
     const log = std.log.scoped(.session);
     defer stream.close(io);
 
@@ -26,13 +26,13 @@ pub fn processConnection(gpa: Allocator, io: Io, fs: *FileSystem, tmpl: *const T
     const connection = try gpa.create(Connection);
     defer gpa.destroy(connection);
 
-    connection.init(io, stream, xorpad, tmpl);
+    connection.init(io, stream, xorpad, assets);
     defer connection.deinit(gpa);
 
     while (!io.cancelRequested() and !connection.logout_requested) {
         if (connection.player == null) {
             if (connection.reader.interface.fillMore()) {
-                try onReceive(gpa, io, fs, tmpl, connection);
+                try onReceive(gpa, io, fs, connection);
             } else |err| switch (err) {
                 error.EndOfStream => return,
                 else => return connection.reader.err.?,
@@ -49,7 +49,7 @@ pub fn processConnection(gpa: Allocator, io: Io, fs: *FileSystem, tmpl: *const T
                 .watch = &watch_future,
             })) {
                 .recv => |fallible| if (fallible) {
-                    try onReceive(gpa, io, fs, tmpl, connection);
+                    try onReceive(gpa, io, fs, connection);
                 } else |err| switch (err) {
                     error.EndOfStream => return,
                     else => return connection.reader.err.?,
@@ -72,7 +72,7 @@ pub fn processConnection(gpa: Allocator, io: Io, fs: *FileSystem, tmpl: *const T
                         };
                     }
 
-                    try sync.send(connection, changes.arena.allocator(), connection.template_collection);
+                    try sync.send(connection, changes.arena.allocator());
                     try connection.writer.interface.flush();
                 },
             }
@@ -80,7 +80,7 @@ pub fn processConnection(gpa: Allocator, io: Io, fs: *FileSystem, tmpl: *const T
     }
 }
 
-fn onReceive(gpa: Allocator, io: Io, fs: *FileSystem, tmpl: *const TemplateCollection, connection: *Connection) !void {
+fn onReceive(gpa: Allocator, io: Io, fs: *FileSystem, connection: *Connection) !void {
     const log = std.log.scoped(.network);
 
     var arena_allocator = std.heap.ArenaAllocator.init(gpa);
@@ -103,7 +103,6 @@ fn onReceive(gpa: Allocator, io: Io, fs: *FileSystem, tmpl: *const TemplateColle
             .arena = arena,
             .connection = connection,
             .fs = fs,
-            .tmpl = tmpl,
             .io = io,
             .packet_head = packet_head,
         };
@@ -143,21 +142,21 @@ pub const Connection = struct {
     player_data_path: ?[]const u8 = null,
     player: ?Player = null,
     logout_requested: bool = false,
-    template_collection: *const TemplateCollection,
+    assets: *const Assets,
 
     pub fn init(
         connection: *Connection,
         io: Io,
         stream: Io.net.Stream,
         xorpad: []u8,
-        tmpl: *const TemplateCollection,
+        assets: *const Assets,
     ) void {
         connection.* = .{
+            .assets = assets,
+            .xorpad = xorpad,
             .stream = stream,
             .reader = stream.reader(io, connection.recv_buffer[0..]),
             .writer = XoringWriter.init(connection.send_buffer[0..], xorpad, stream.writer(io, "")),
-            .xorpad = xorpad,
-            .template_collection = tmpl,
         };
     }
 
@@ -166,7 +165,7 @@ pub const Connection = struct {
     }
 
     pub fn flushSync(connection: *Connection, arena: Allocator) !void {
-        try sync.send(connection, arena, connection.template_collection);
+        try sync.send(connection, arena);
     }
 
     pub fn setPlayerUID(connection: *Connection, uid: u32) !void {
@@ -225,7 +224,6 @@ pub const Context = struct {
     arena: Allocator,
     connection: *Connection,
     fs: *FileSystem,
-    tmpl: *const TemplateCollection,
     io: Io,
     packet_head: proto.pb.PacketHead,
 
