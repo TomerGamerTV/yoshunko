@@ -26,7 +26,7 @@ pub fn processConnection(gpa: Allocator, io: Io, fs: *FileSystem, tmpl: *const T
     const connection = try gpa.create(Connection);
     defer gpa.destroy(connection);
 
-    connection.init(io, stream, xorpad);
+    connection.init(io, stream, xorpad, tmpl);
     defer connection.deinit(gpa);
 
     while (!io.cancelRequested() and !connection.logout_requested) {
@@ -72,7 +72,7 @@ pub fn processConnection(gpa: Allocator, io: Io, fs: *FileSystem, tmpl: *const T
                         };
                     }
 
-                    try sync.send(connection, changes.arena.allocator());
+                    try sync.send(connection, changes.arena.allocator(), connection.template_collection);
                     try connection.writer.interface.flush();
                 },
             }
@@ -143,13 +143,21 @@ pub const Connection = struct {
     player_data_path: ?[]const u8 = null,
     player: ?Player = null,
     logout_requested: bool = false,
+    template_collection: *const TemplateCollection,
 
-    pub fn init(connection: *Connection, io: Io, stream: Io.net.Stream, xorpad: []u8) void {
+    pub fn init(
+        connection: *Connection,
+        io: Io,
+        stream: Io.net.Stream,
+        xorpad: []u8,
+        tmpl: *const TemplateCollection,
+    ) void {
         connection.* = .{
             .stream = stream,
             .reader = stream.reader(io, connection.recv_buffer[0..]),
             .writer = XoringWriter.init(connection.send_buffer[0..], xorpad, stream.writer(io, "")),
             .xorpad = xorpad,
+            .template_collection = tmpl,
         };
     }
 
@@ -158,7 +166,7 @@ pub const Connection = struct {
     }
 
     pub fn flushSync(connection: *Connection, arena: Allocator) !void {
-        try sync.send(connection, arena);
+        try sync.send(connection, arena, connection.template_collection);
     }
 
     pub fn setPlayerUID(connection: *Connection, uid: u32) !void {

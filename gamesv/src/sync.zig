@@ -1,10 +1,13 @@
 const std = @import("std");
-const pb = @import("proto").pb;
+const proto = @import("proto");
+const pb = proto.pb;
 const Player = @import("fs/Player.zig");
 const Avatar = @import("fs/Avatar.zig");
 const Weapon = @import("fs/Weapon.zig");
 const Equip = @import("fs/Equip.zig");
+const TemplateCollection = @import("data/TemplateCollection.zig");
 const Connection = @import("network.zig").Connection;
+const Io = std.Io;
 const Allocator = std.mem.Allocator;
 
 const player_sync_fields = .{
@@ -13,7 +16,9 @@ const player_sync_fields = .{
     .{ Equip, .{ .item, .equip_list, pb.EquipInfo } },
 };
 
-pub fn send(connection: *Connection, arena: Allocator) !void {
+pub fn send(connection: *Connection, arena: Allocator, tmpl: *const TemplateCollection) !void {
+    const log = std.log.scoped(.sync);
+
     const player = connection.getPlayer() catch return;
     var notify: pb.PlayerSyncScNotify = .default;
 
@@ -21,6 +26,84 @@ pub fn send(connection: *Connection, arena: Allocator) !void {
         notify.self_basic_info = try player.buildBasicInfoProto(arena);
     }
 
+    try syncItems(arena, player, &notify);
+
+    connection.write(notify, 0) catch {};
+
+    if (player.sync.new_avatars.count() != 0) {
+        var ids = player.sync.new_avatars.keyIterator();
+        while (ids.next()) |id| {
+            connection.write(pb.AddAvatarScNotify{
+                .avatar_id = id.*,
+                .perform_type = 2,
+            }, 0) catch {};
+        }
+    }
+
+    if (player.sync.in_scene_transition) blk: {
+        // TODO: only hall transitions are supported currently
+        const section = &(player.cur_section orelse break :blk);
+
+        var hall_scene_data: pb.HallSceneData = .{
+            .section_id = player.hall.section_id,
+            .control_avatar_id = player.basic_info.control_avatar_id,
+            .control_guise_avatar_id = player.basic_info.control_guise_avatar_id,
+            .scene_time_in_minutes = player.hall.time_in_minutes,
+            .day_of_week = player.hall.day_of_week,
+        };
+
+        switch (section.position) {
+            .born_transform => |name| {
+                hall_scene_data.transform_id = try arena.dupe(u8, name);
+            },
+            .custom => |transform| {
+                hall_scene_data.position = try transform.toProto(arena);
+            },
+        }
+
+        connection.write(pb.EnterSceneScNotify{ .scene = .{
+            .scene_type = 1,
+            .hall_scene_data = hall_scene_data,
+        } }, 0) catch {};
+    }
+
+    if (player.sync.pending_section_switch) |next_section_id| blk: {
+        const transform_id = tmpl.getSectionDefaultTransform(next_section_id) orelse {
+            log.err("section with id {} doesn't exist", .{next_section_id});
+            break :blk;
+        };
+
+        const action = pb.ActionSwitchSection{
+            .section_id = next_section_id,
+            .transform_id = transform_id,
+        };
+
+        var allocating = Io.Writer.Allocating.init(arena);
+        try proto.encodeMessage(&allocating.writer, action, proto.pb.desc_action);
+
+        connection.write(pb.SectionEventScNotify{
+            .section_id = player.hall.section_id,
+            .owner_type = .scene,
+            .action_list = &.{.{
+                .action_type = .SWITCH_SECTION,
+                .body = allocating.written(),
+            }},
+        }, 0) catch {};
+    }
+
+    if (player.sync.hall_refresh) {
+        connection.write(pb.HallRefreshScNotify{
+            .force_refresh = true,
+            .section_id = player.hall.section_id,
+            .control_avatar_id = player.basic_info.control_avatar_id,
+            .control_guise_avatar_id = player.basic_info.control_guise_avatar_id,
+            .scene_time_in_minutes = player.hall.time_in_minutes,
+            .day_of_week = player.hall.day_of_week,
+        }, 0) catch {};
+    }
+}
+
+fn syncItems(arena: Allocator, player: *Player, notify: *pb.PlayerSyncScNotify) !void {
     inline for (Player.item_containers, Player.Sync.change_sets, player_sync_fields) |pair, chg, field| {
         const Type, const container_field = pair;
         _, const set_field = chg;
@@ -60,17 +143,5 @@ pub fn send(connection: *Connection, arena: Allocator) !void {
             notify.item = .default;
         }
         notify.item.?.material_list = material_list;
-    }
-
-    connection.write(notify, 0) catch {};
-
-    if (player.sync.new_avatars.count() != 0) {
-        var ids = player.sync.new_avatars.keyIterator();
-        while (ids.next()) |id| {
-            connection.write(pb.AddAvatarScNotify{
-                .avatar_id = id.*,
-                .perform_type = 2,
-            }, 0) catch {};
-        }
     }
 }

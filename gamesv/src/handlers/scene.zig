@@ -1,13 +1,18 @@
 const std = @import("std");
 const pb = @import("proto").pb;
 const network = @import("../network.zig");
+const Player = @import("../fs/Player.zig");
+const Hall = @import("../fs/Hall.zig");
 
 pub fn onEnterWorldCsReq(context: *network.Context, _: pb.EnterWorldCsReq) !void {
-    try context.notify(pb.EnterSceneScNotify{
-        .scene = try makeDefaultHallScene(context),
-    });
+    var retcode: i32 = 1;
+    defer context.respond(pb.EnterWorldScRsp{ .retcode = retcode }) catch {};
+    defer if (retcode == 0) context.connection.flushSync(context.arena) catch {};
 
-    try context.respond(pb.EnterWorldScRsp{});
+    const player = try context.connection.getPlayer();
+    try switchSection(context, player);
+
+    retcode = 0;
 }
 
 pub fn onEnterSectionCompleteCsReq(context: *network.Context, _: pb.EnterSectionCompleteCsReq) !void {
@@ -15,23 +20,40 @@ pub fn onEnterSectionCompleteCsReq(context: *network.Context, _: pb.EnterSection
 }
 
 pub fn onLeaveCurSceneCsReq(context: *network.Context, _: pb.LeaveCurSceneCsReq) !void {
-    try context.notify(pb.EnterSceneScNotify{
-        .scene = try makeDefaultHallScene(context),
-    });
+    var retcode: i32 = 1;
+    defer context.respond(pb.LeaveCurSceneScRsp{ .retcode = retcode }) catch {};
+    defer if (retcode == 0) context.connection.flushSync(context.arena) catch {};
 
-    try context.respond(pb.LeaveCurSceneScRsp{});
+    const player = try context.connection.getPlayer();
+    try switchSection(context, player);
+
+    retcode = 0;
 }
 
-fn makeDefaultHallScene(context: *network.Context) !pb.SceneData {
-    const player = try context.connection.getPlayer();
+pub fn onEnterSectionCsReq(context: *network.Context, request: pb.EnterSectionCsReq) !void {
+    var retcode: i32 = 1;
+    defer context.respond(pb.EnterSectionScRsp{ .retcode = retcode }) catch {};
+    defer if (retcode == 0) context.connection.flushSync(context.arena) catch {};
 
-    return .{
-        .scene_type = 1,
-        .hall_scene_data = .{
-            .section_id = 1,
-            .control_avatar_id = player.basic_info.control_avatar_id,
-            .control_guise_avatar_id = player.basic_info.control_guise_avatar_id,
-            .transform_id = "Street_PlayerPos_Default",
+    const player = try context.connection.getPlayer();
+    player.hall.section_id = request.section_id;
+
+    try switchSection(context, player);
+    retcode = 0;
+}
+
+fn switchSection(context: *network.Context, player: *Player) !void {
+    const log = std.log.scoped(.section_switch);
+
+    player.performHallTransition(context.gpa, context.fs, context.tmpl) catch |err| switch (err) {
+        error.InvalidSectionID => {
+            log.err(
+                "section id {} is invalid, falling back to default section ({})",
+                .{ player.hall.section_id, Hall.default_section_id },
+            );
+            player.hall.section_id = Hall.default_section_id;
+            try player.performHallTransition(context.gpa, context.fs, context.tmpl);
         },
+        else => return err,
     };
 }

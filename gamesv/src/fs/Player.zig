@@ -10,6 +10,7 @@ const Avatar = @import("Avatar.zig");
 const Weapon = @import("Weapon.zig");
 const Equip = @import("Equip.zig");
 const Material = @import("Material.zig");
+const Hall = @import("Hall.zig");
 
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
@@ -43,6 +44,8 @@ avatar_map: std.AutoArrayHashMapUnmanaged(u32, Avatar),
 weapon_map: std.AutoArrayHashMapUnmanaged(u32, Weapon),
 equip_map: std.AutoArrayHashMapUnmanaged(u32, Equip),
 material_map: std.AutoArrayHashMapUnmanaged(u32, i32),
+hall: Hall,
+cur_section: ?Hall.Section = null,
 
 pub const Sync = struct {
     fn HashSet(comptime T: type) type {
@@ -61,6 +64,9 @@ pub const Sync = struct {
     changed_weapons: HashSet(u32) = .empty,
     changed_equips: HashSet(u32) = .empty,
     materials_changed: bool = false,
+    in_scene_transition: bool = false,
+    pending_section_switch: ?u32 = null,
+    hall_refresh: bool = false,
 
     pub fn reset(sync: *Sync) void {
         sync.basic_info_changed = false;
@@ -69,6 +75,9 @@ pub const Sync = struct {
         sync.changed_weapons.clearRetainingCapacity();
         sync.changed_equips.clearRetainingCapacity();
         sync.materials_changed = false;
+        sync.in_scene_transition = false;
+        sync.pending_section_switch = null;
+        sync.hall_refresh = false;
     }
 
     pub fn setChanges(sync: *Sync, comptime T: type, gpa: Allocator, unique_id: u32) !void {
@@ -158,6 +167,16 @@ pub fn reloadFile(
         player.material_map.deinit(gpa);
         player.material_map = new_materials;
         player.sync.materials_changed = true;
+    } else if (std.mem.eql(u8, path, "hall/info")) {
+        var new_hall = try file_util.parseZon(Hall, gpa, content);
+
+        if (new_hall.section_id != player.hall.section_id) {
+            player.sync.pending_section_switch = new_hall.section_id;
+            new_hall.section_id = player.hall.section_id;
+        } else player.sync.hall_refresh = true;
+
+        player.hall.deinit(gpa);
+        player.hall = new_hall;
     }
 }
 
@@ -170,6 +189,7 @@ pub fn loadOrCreate(gpa: Allocator, fs: *FileSystem, tmpl: *const TemplateCollec
     const weapon_map = try loadItems(Weapon, gpa, fs, tmpl, player_uid, true);
     const equip_map = try loadItems(Equip, gpa, fs, tmpl, player_uid, true);
     const material_map = try Material.loadAll(gpa, fs, tmpl, player_uid);
+    const hall = try file_util.loadOrCreateZon(Hall, gpa, arena.allocator(), fs, "player/{}/hall/info", .{player_uid});
 
     return .{
         .player_uid = player_uid,
@@ -178,7 +198,33 @@ pub fn loadOrCreate(gpa: Allocator, fs: *FileSystem, tmpl: *const TemplateCollec
         .weapon_map = weapon_map,
         .equip_map = equip_map,
         .material_map = material_map,
+        .hall = hall,
     };
+}
+
+pub fn performHallTransition(player: *Player, gpa: Allocator, fs: *FileSystem, tmpl: *const TemplateCollection) !void {
+    var temp_allocator = std.heap.ArenaAllocator.init(gpa);
+    defer temp_allocator.deinit();
+    const arena = temp_allocator.allocator();
+
+    const section_path = try std.fmt.allocPrint(arena, "player/{}/hall/{}/info", .{ player.player_uid, player.hall.section_id });
+    const section = if (try fs.readFile(arena, section_path)) |content|
+        try file_util.parseZon(Hall.Section, gpa, content)
+    else blk: {
+        const section_template = tmpl.getConfigByKey(
+            .section_config_template_tb,
+            player.hall.section_id,
+        ) orelse return error.InvalidSectionID;
+
+        const section = try Hall.Section.createDefault(gpa, section_template);
+        try fs.writeFile(section_path, try file_util.serializeZon(arena, section));
+        break :blk section;
+    };
+
+    if (player.cur_section) |prev_section| prev_section.deinit(gpa);
+
+    player.cur_section = section;
+    player.sync.in_scene_transition = true;
 }
 
 fn loadItems(
