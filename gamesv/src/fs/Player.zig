@@ -295,23 +295,7 @@ pub fn loadOrCreate(gpa: Allocator, fs: *FileSystem, assets: *const Assets, play
 }
 
 pub fn performHallTransition(player: *Player, gpa: Allocator, fs: *FileSystem, assets: *const Assets) !void {
-    var temp_allocator = std.heap.ArenaAllocator.init(gpa);
-    defer temp_allocator.deinit();
-    const arena = temp_allocator.allocator();
-
-    const section_path = try std.fmt.allocPrint(arena, "player/{}/hall/{}/info", .{ player.player_uid, player.hall.section_id });
-    const section = if (try fs.readFile(arena, section_path)) |content|
-        try file_util.parseZon(Hall.Section, gpa, content)
-    else blk: {
-        const section_template = assets.templates.getConfigByKey(
-            .section_config_template_tb,
-            player.hall.section_id,
-        ) orelse return error.InvalidSectionID;
-
-        const section = try Hall.Section.createDefault(gpa, section_template);
-        try fs.writeFile(section_path, try file_util.serializeZon(arena, section));
-        break :blk section;
-    };
+    const section = try player.getOrCreateHallSection(gpa, fs, assets, player.hall.section_id);
 
     if (player.cur_section) |prev_section| prev_section.deinit(gpa);
     player.cur_section = section;
@@ -333,6 +317,32 @@ pub fn performHallTransition(player: *Player, gpa: Allocator, fs: *FileSystem, a
     }
 
     player.sync.in_scene_transition = true;
+}
+
+fn getOrCreateHallSection(player: *Player, gpa: Allocator, fs: *FileSystem, assets: *const Assets, id: u32) !Hall.Section {
+    var temp_allocator = std.heap.ArenaAllocator.init(gpa);
+    defer temp_allocator.deinit();
+    const arena = temp_allocator.allocator();
+
+    const section_path = try sectionPath(arena, player.player_uid, id);
+
+    if (try fs.readFile(arena, section_path)) |content|
+        return try file_util.parseZon(Hall.Section, gpa, content)
+    else {
+        const section_template = assets.templates.getConfigByKey(
+            .section_config_template_tb,
+            player.hall.section_id,
+        ) orelse return error.InvalidSectionID;
+
+        const section = try Hall.Section.createDefault(gpa, section_template);
+        try fs.writeFile(section_path, try file_util.serializeZon(arena, section));
+
+        return section;
+    }
+}
+
+fn sectionPath(gpa: Allocator, player_uid: u32, section_id: u32) ![]u8 {
+    return std.fmt.allocPrint(gpa, "player/{}/hall/{}/info", .{ player_uid, section_id });
 }
 
 pub fn interactWithUnit(player: *Player, gpa: Allocator, fs: *FileSystem, assets: *const Assets, npc_id: u32, interact_id: u32) !void {

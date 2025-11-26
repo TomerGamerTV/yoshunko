@@ -39,6 +39,14 @@ pub fn onEnterSectionCsReq(context: *network.Context, request: pb.EnterSectionCs
     player.hall.section_id = request.section_id;
 
     try switchSection(context, player);
+    const section = &player.cur_section.?;
+    const new_position: Hall.Section.Position = .{
+        .born_transform = try context.gpa.dupe(u8, request.transform_id),
+    };
+
+    section.position.deinit(context.gpa);
+    section.position = new_position;
+
     retcode = 0;
 }
 

@@ -35,6 +35,13 @@ pub const Section = struct {
     pub const Position = union(enum) {
         born_transform: []const u8,
         custom: Transform,
+
+        pub fn deinit(position: Position, gpa: Allocator) void {
+            switch (position) {
+                .born_transform => |bt| gpa.free(bt),
+                .custom => {},
+            }
+        }
     };
 
     pub fn createDefault(gpa: Allocator, template: *const templates.SectionConfigTemplate) !@This() {
