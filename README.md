@@ -5,7 +5,7 @@
 
 ## Getting started
 ### Requirements
-- [Zig 0.16.0-dev.1364](https://ziglang.org/builds/zig-x86_64-linux-0.16.0-dev.1364+f0a3df98d.tar.xz)
+- [Zig 0.16.0-dev.1470](https://ziglang.org/builds/zig-x86_64-linux-0.16.0-dev.1470+32dc46aae.tar.xz)
 - [SDK Server](https://git.xeondev.com/reversedrooms/hoyo-sdk/releases)
 
 ##### NOTE: this server doesn't include the sdk server as it's not specific per game. You can use `hoyo-sdk` with this server.

@@ -33,7 +33,7 @@ pub const Handler = struct {
 };
 
 const CmdId = build_enum: {
-    var fields: []const std.builtin.Type.EnumField = &.{};
+    var cmd_names: []const []const u8 = &.{};
 
     for (namespaces) |namespace| {
         for (std.meta.declarations(namespace)) |decl| {
@@ -48,22 +48,19 @@ const CmdId = build_enum: {
                     const message_desc = @field(proto.pb_desc, message_name);
                     if (!@hasDecl(message_desc, "cmd_id")) continue;
 
-                    fields = fields ++ .{std.builtin.Type.EnumField{
-                        .name = @typeName(Message),
-                        .value = message_desc.cmd_id,
-                    }};
+                    cmd_names = cmd_names ++ .{message_name};
                 },
                 else => {},
             }
         }
     }
 
-    break :build_enum @Type(.{ .@"enum" = .{
-        .decls = &.{},
-        .tag_type = u16,
-        .fields = fields,
-        .is_exhaustive = true,
-    } });
+    var cmd_ids: [cmd_names.len]u16 = undefined;
+    for (cmd_names, 0..) |name, i| {
+        cmd_ids[i] = @field(proto.pb_desc, name).cmd_id;
+    }
+
+    break :build_enum @Enum(u16, .exhaustive, cmd_names, &cmd_ids);
 };
 
 pub fn dispatchPacket(

@@ -4,20 +4,14 @@ pub fn parse(comptime Args: type, args: [][:0]u8) ?Args {
     const fields = comptime std.meta.fields(Args);
     const ArgField = comptime std.meta.FieldEnum(Args);
     const Flag = comptime blk: {
-        var enum_fields: []const std.builtin.Type.EnumField = &.{};
-        for (std.meta.fields(ArgField)) |field| {
-            enum_fields = enum_fields ++ .{std.builtin.Type.EnumField{
-                .name = field.name,
-                .value = field.name[0],
-            }};
+        const field_names = std.meta.fieldNames(ArgField);
+        var flags: [field_names.len]u8 = undefined;
+
+        for (field_names, 0..) |name, i| {
+            flags[i] = name[0];
         }
 
-        break :blk @Type(.{ .@"enum" = .{
-            .fields = enum_fields,
-            .decls = &.{},
-            .tag_type = u8,
-            .is_exhaustive = true,
-        } });
+        break :blk @Enum(u8, .exhaustive, field_names, flags);
     };
 
     var result: Args = .{};

@@ -9,40 +9,21 @@ pub fn ConcurrentSelect(comptime functions: anytype) type {
         pub const init: @This() = .{};
 
         const ResultType = blk: {
-            var fields: []const std.builtin.Type.EnumField = &.{};
-            for (std.meta.fields(@TypeOf(functions)), 0..) |field, i| {
-                fields = fields ++ .{std.builtin.Type.EnumField{
-                    .name = field.name,
-                    .value = i,
-                }};
-            }
+            const field_names = std.meta.fieldNames(@TypeOf(functions));
+            var field_values: [field_names.len]usize = undefined;
+            for (field_values[0..], 0..) |*v, i| v.* = i;
 
-            break :blk @Type(.{ .@"enum" = .{
-                .tag_type = usize,
-                .fields = fields,
-                .decls = &.{},
-                .is_exhaustive = true,
-            } });
+            break :blk @Enum(usize, .exhaustive, field_names, &field_values);
         };
 
         const FutureResult = blk: {
-            var fields: []const std.builtin.Type.UnionField = &.{};
-            for (std.meta.fields(@TypeOf(functions))) |field| {
-                const function = @field(functions, field.name);
-                const Result = @typeInfo(@TypeOf(function)).@"fn".return_type.?;
-                fields = fields ++ .{std.builtin.Type.UnionField{
-                    .name = field.name,
-                    .type = Result,
-                    .alignment = std.meta.alignment(Result),
-                }};
+            var names = std.meta.fieldNames(@TypeOf(functions));
+            var results: [names.len]type = undefined;
+            for (names, 0..) |name, i| {
+                results[i] = @typeInfo(@TypeOf(@field(functions, name))).@"fn".return_type.?;
             }
 
-            break :blk @Type(.{ .@"union" = .{
-                .layout = .auto,
-                .tag_type = ResultType,
-                .fields = fields,
-                .decls = &.{},
-            } });
+            break :blk @Union(.auto, ResultType, names, &results, &@splat(.{}));
         };
 
         const TypedFuture = struct {
