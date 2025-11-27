@@ -12,7 +12,17 @@ const query_gateway = @import("handlers/query_gateway.zig");
 const query_dispatch_path = "/query_dispatch";
 const query_gateway_prefix = "/query_gateway/";
 
-pub fn processConnection(gpa: Allocator, io: Io, fs: *FileSystem, stream: Io.net.Stream) !void {
+pub fn onConnect(gpa: Allocator, io: Io, fs: *FileSystem, stream: Io.net.Stream) void {
+    const log = std.log.scoped(.network);
+
+    if (processConnection(gpa, io, fs, stream)) {
+        log.debug("connection from {f} disconnected", .{stream.socket.address});
+    } else |err| {
+        log.err("connection from {f} disconnected due to an error: {t}", .{ stream.socket.address, err });
+    }
+}
+
+fn processConnection(gpa: Allocator, io: Io, fs: *FileSystem, stream: Io.net.Stream) !void {
     const log = std.log.scoped(.network);
     defer stream.close(io);
 
@@ -20,7 +30,6 @@ pub fn processConnection(gpa: Allocator, io: Io, fs: *FileSystem, stream: Io.net
     defer arena.deinit();
 
     log.debug("new connection from {f}", .{stream.socket.address});
-    defer log.debug("connection from {f} disconnected", .{stream.socket.address});
 
     var read_buffer: [1024]u8 = undefined;
     var write_buffer: [1024]u8 = undefined;

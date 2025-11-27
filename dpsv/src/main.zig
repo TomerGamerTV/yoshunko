@@ -4,7 +4,6 @@ const http = @import("http.zig");
 const native_os = @import("builtin").os.tag;
 
 const Io = std.Io;
-const ayo = common.ayo;
 const Allocator = std.mem.Allocator;
 const FileSystem = common.FileSystem;
 
@@ -47,40 +46,15 @@ fn init(gpa: Allocator, io: Io) u8 {
 
     log.info("dispatch server is listening at {f}", .{address});
 
-    var futures: ayo.ConcurrentSelect(.{
-        .accept = Io.net.Server.accept,
-        .close = http.processConnection,
-    }) = .init;
+    var client_group: Io.Group = .init;
+    defer client_group.cancel(io);
 
-    defer futures.cancel(io, gpa);
+    while (!io.cancelRequested()) {
+        const stream = server.accept(io) catch continue;
 
-    futures.concurrent(gpa, io, .accept, Io.net.Server.accept, .{ &server, io }) catch |err| {
-        // TODO: fallback to io.async calls if ConcurrencyUnavailable
-        log.err("failed to schedule accept routine: {t}", .{err});
-        return 1;
-    };
-
-    while (futures.wait(io)) |result| {
-        switch (result) {
-            .accept => |fallible| {
-                futures.concurrent(gpa, io, .accept, Io.net.Server.accept, .{ &server, io }) catch
-                    unreachable; // errors shouldn't be possible since first of all concurrency IS available and the space for future was freed by previous call.
-
-                const stream = fallible catch continue;
-                futures.concurrent(gpa, io, .close, http.processConnection, .{ gpa, io, &fs, stream }) catch |err| {
-                    switch (err) {
-                        error.OutOfMemory => stream.close(io),
-                        error.ConcurrencyUnavailable => unreachable, // not possible at this point
-                    }
-                };
-            },
-            .close => |fallible| {
-                fallible catch |err| log.err("client disconnect due to an error: {t}", .{err});
-            },
-        }
-    } else |err| {
-        if (!io.cancelRequested())
-            log.err("futures.wait failed: {t}", .{err});
+        const client_args = .{ gpa, io, &fs, stream };
+        client_group.concurrent(io, http.onConnect, client_args) catch
+            client_group.async(io, http.onConnect, client_args);
     }
 
     return 0;
