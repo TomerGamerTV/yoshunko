@@ -4638,7 +4638,7 @@
       "pen_delta": 0,
       "luck": 0,
       "stun": 0,
-      "break_stun": 93,
+      "break_stun": 83,
       "element_abnormal_power": 94,
       "sp_bar_point": 120,
       "sp_recover": 120,
@@ -4705,7 +4705,7 @@
         "3:4:1",
         "3:5:1"
       ],
-      "unk_75": 1001,
+      "unk_75": 1003,
       "unk_76": 5000,
       "unk_77": 0,
       "unk_78": 4,
@@ -6244,9 +6244,9 @@
       "unk_57": 0,
       "unk_58": 0,
       "unk_59": 0,
-      "unk_60": 2932548399,
-      "unk_61": 3728831708,
-      "unk_62": 565746809,
+      "unk_60": 3762523629,
+      "unk_61": 1885329903,
+      "unk_62": 0,
       "unk_63": 0,
       "unk_64": 0,
       "unk_65": 0,
@@ -6340,9 +6340,9 @@
       "unk_57": 0,
       "unk_58": 0,
       "unk_59": 0,
-      "unk_60": 2401582774,
-      "unk_61": 2467964941,
-      "unk_62": 736325911,
+      "unk_60": 3646625793,
+      "unk_61": 1980473930,
+      "unk_62": 0,
       "unk_63": 0,
       "unk_64": 0,
       "unk_65": 0,
@@ -8485,9 +8485,9 @@
       "rp_max": 0,
       "rp_recover": 0,
       "unk_83": [
-        18444,
-        21904,
-        16684
+        18244,
+        21704,
+        16484
       ],
       "awake_ids": [
         118100,
@@ -8610,9 +8610,9 @@
       "rp_max": 0,
       "rp_recover": 0,
       "unk_83": [
-        20164,
-        18100,
-        20632
+        19964,
+        17900,
+        20432
       ],
       "awake_ids": [
         119100,
@@ -8735,9 +8735,9 @@
       "rp_max": 0,
       "rp_recover": 0,
       "unk_83": [
-        20588,
-        18524,
-        21056
+        20388,
+        18324,
+        20856
       ],
       "awake_ids": [
         119100,
@@ -11807,7 +11807,7 @@
       "pen_delta": 0,
       "luck": 0,
       "stun": 0,
-      "break_stun": 93,
+      "break_stun": 83,
       "element_abnormal_power": 94,
       "sp_bar_point": 120,
       "sp_recover": 120,
@@ -11874,7 +11874,119 @@
         "3:4:1",
         "3:5:1"
       ],
-      "unk_75": 1001,
+      "unk_75": 1003,
+      "unk_76": 5000,
+      "unk_77": 0,
+      "unk_78": 4,
+      "base_avatar_id": 1431,
+      "unk_80": 100,
+      "rp_max": 0,
+      "rp_recover": 0
+    },
+    {
+      "id": 3114311,
+      "unk_5": [
+
+      ],
+      "unk_6": [
+
+      ],
+      "unk_7": [
+
+      ],
+      "unk_8": 0,
+      "unk_9": 0,
+      "unk_10": 0,
+      "avatar_piece_id": 5431,
+      "unk_12": 0,
+      "unk_13": 0,
+      "hp_max": 617,
+      "health_growth": 837238,
+      "unk_16": 0,
+      "unk_17": 0,
+      "unk_18": 0,
+      "unk_19": 0,
+      "unk_20": 0,
+      "attack": 135,
+      "attack_growth": 82578,
+      "defence": 49,
+      "defence_growth": 66203,
+      "crit": 500,
+      "crit_damage": 5000,
+      "crit_res": 0,
+      "crit_damage_res": 0,
+      "pen_rate": 0,
+      "pen_delta": 0,
+      "luck": 0,
+      "stun": 0,
+      "break_stun": 83,
+      "element_abnormal_power": 94,
+      "sp_bar_point": 120,
+      "sp_recover": 120,
+      "element_mystery": 93,
+      "rbl": 1,
+      "rbl_correction_factor": 10000,
+      "rbl_probability": 0,
+      "unk_41": 0,
+      "unk_42": 0,
+      "unk_43": 0,
+      "unk_44": 0,
+      "unk_45": 0,
+      "unk_46": 0,
+      "unk_47": 0,
+      "unk_48": 0,
+      "unk_49": 0,
+      "unk_50": 0,
+      "unk_51": 0,
+      "unk_52": 0,
+      "unk_53": 0,
+      "unk_54": 0,
+      "unk_55": 0,
+      "unk_56": 0,
+      "unk_57": 0,
+      "unk_58": 0,
+      "unk_59": 0,
+      "unk_60": 2935218216,
+      "unk_61": 4177921399,
+      "unk_62": 4177921399,
+      "unk_63": 0,
+      "unk_64": 0,
+      "unk_65": 0,
+      "unk_66": 3000,
+      "tags": [
+        "Zhenzhen",
+        "Cut",
+        "Electric",
+        "Female",
+        "Camp1",
+        "Size2",
+        "AidTypeParry",
+        "Zhenzhen",
+        "EtherEyesSize2"
+      ],
+      "unk_68": [
+
+      ],
+      "unk_69": [
+
+      ],
+      "unk_70": [
+        2,
+        5,
+        6
+      ],
+      "weapon_type": 1,
+      "element": [
+        200
+      ],
+      "hit_type": [
+        101
+      ],
+      "unk_element_camp": [
+        "3:4:1",
+        "3:5:1"
+      ],
+      "unk_75": 1003,
       "unk_76": 5000,
       "unk_77": 0,
       "unk_78": 4,

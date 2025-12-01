@@ -529,17 +529,6 @@
       "camp": 7
     },
     {
-      "id": 1511,
-      "code_name": "Avatar_Female_Size01_NangongYu_En",
-      "name": "Avatar_Female_Size01_NangongYu",
-      "full_name": "Avatar_Female_Size01_NangongYu_FullName",
-      "audio_event_replace_param": "nangongyu",
-      "audio_bank": "BK_NangongYu|BK_CHR_Common|BK_NangongYu_VO",
-      "unk_1": 0,
-      "gender": 2,
-      "camp": 0
-    },
-    {
       "id": 2011,
       "code_name": "Avatar_Male_Size01_Wise_En",
       "name": "Avatar_Male_Size01_Wise",

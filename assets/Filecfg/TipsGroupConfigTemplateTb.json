@@ -1071,6 +1071,11 @@
       "priority": 1
     },
     {
+      "tips_group_id": 54021,
+      "group_icon": "Assets/NapResources/UI/Sprite/A1DynamicLoad/IconRoleCircle/UnPacker/IconNPCCircle30218.png",
+      "priority": 1
+    },
+    {
       "tips_group_id": 101011,
       "group_icon": "UI/Sprite/A1DynamicLoad/InterKnot/UnPacker/IconInterknotAvatar/IconInterKnotRole0001.png",
       "priority": 1

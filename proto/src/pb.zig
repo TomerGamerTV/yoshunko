@@ -31,7 +31,7 @@ pub const desc_common = struct {
     };
 
     pub const DummyMessage = struct {
-        pub const cmd_id: u16 = 8423;
+        pub const cmd_id: u16 = 3907;
     };
 };
 

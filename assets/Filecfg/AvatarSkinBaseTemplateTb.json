@@ -261,13 +261,13 @@
       "server_only_1": 0,
       "server_only_2": 0,
       "server_only_3": 0,
-      "GMBBOEGOEPH": "",
+      "GMBBOEGOEPH": "AvatarSkin_Unagi_Name_000",
       "HMIOIBHJGCM": [
         "DefaultSkin"
       ],
       "server_only_4": 0,
       "OEMHKAENMHN": 1,
-      "FGJJELBGBBC": "",
+      "FGJJELBGBBC": "AvatarSkin_Unagi_Desc_000",
       "FKBJLMBAPDI": 0,
       "server_only_5": 0,
       "server_only_6": 0,
@@ -457,13 +457,13 @@
       "server_only_1": 0,
       "server_only_2": 0,
       "server_only_3": 0,
-      "GMBBOEGOEPH": "",
+      "GMBBOEGOEPH": "AvatarSkin_Lighter_Name_000",
       "HMIOIBHJGCM": [
         "DefaultSkin"
       ],
       "server_only_4": 0,
       "OEMHKAENMHN": 1,
-      "FGJJELBGBBC": "",
+      "FGJJELBGBBC": "AvatarSkin_Lighter_Desc_000",
       "FKBJLMBAPDI": 0,
       "server_only_5": 0,
       "server_only_6": 0,
@@ -597,13 +597,13 @@
       "server_only_1": 0,
       "server_only_2": 0,
       "server_only_3": 0,
-      "GMBBOEGOEPH": "",
+      "GMBBOEGOEPH": "AvatarSkin_Harumasa_Name_000",
       "HMIOIBHJGCM": [
         "DefaultSkin"
       ],
       "server_only_4": 0,
       "OEMHKAENMHN": 1,
-      "FGJJELBGBBC": "",
+      "FGJJELBGBBC": "AvatarSkin_Harumasa_Desc_000",
       "FKBJLMBAPDI": 0,
       "server_only_5": 0,
       "server_only_6": 0,
@@ -653,13 +653,13 @@
       "server_only_1": 0,
       "server_only_2": 0,
       "server_only_3": 0,
-      "GMBBOEGOEPH": "",
+      "GMBBOEGOEPH": "AvatarSkin_Yanagi_Name_000",
       "HMIOIBHJGCM": [
         "DefaultSkin"
       ],
       "server_only_4": 0,
       "OEMHKAENMHN": 1,
-      "FGJJELBGBBC": "",
+      "FGJJELBGBBC": "AvatarSkin_Yanagi_Desc_000",
       "FKBJLMBAPDI": 0,
       "server_only_5": 0,
       "server_only_6": 0,
@@ -1370,6 +1370,34 @@
       "BKFKIDCLHKL": 0,
       "FHJDONJMNKP": "",
       "AHHLKMJEEAE": "",
+      "HPMCPJGPKJB": 0
+    },
+    {
+      "id": 3114311,
+      "server_only_0": 0,
+      "DLFHPHCLIBA": "Zhenzhen_skin01",
+      "NFIEGMLEEFE": "",
+      "avatar_id": 1431,
+      "server_only_1": 0,
+      "server_only_2": 0,
+      "server_only_3": 0,
+      "GMBBOEGOEPH": "AvatarSkin_Yuzuha_Name_001",
+      "HMIOIBHJGCM": [
+        "ZhenzhenDawnlight"
+      ],
+      "server_only_4": 0,
+      "OEMHKAENMHN": 0,
+      "FGJJELBGBBC": "AvatarSkin_Yuzuha_Desc_001",
+      "FKBJLMBAPDI": 0,
+      "server_only_5": 0,
+      "server_only_6": 0,
+      "server_only_7": 0,
+      "server_only_8": 0,
+      "server_only_9": 0,
+      "DIGLJDFKAMN": "IconRole47_01",
+      "BKFKIDCLHKL": 100700801,
+      "FHJDONJMNKP": "ShopSkin_version025_release",
+      "AHHLKMJEEAE": "ShopSkin_version025_release",
       "HPMCPJGPKJB": 0
     },
     {
