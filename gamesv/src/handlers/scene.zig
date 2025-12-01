@@ -1,102 +1,119 @@
 const std = @import("std");
 const pb = @import("proto").pb;
 const network = @import("../network.zig");
-const Player = @import("../fs/Player.zig");
+const Connection = @import("../network/Connection.zig");
+const EventQueue = @import("../logic/EventQueue.zig");
+const PlayerHallComponent = @import("../logic/component/player/PlayerHallComponent.zig");
+const State = @import("../network/State.zig");
+const Memory = State.Memory;
 const Hall = @import("../fs/Hall.zig");
+const HallMode = @import("../logic/mode/HallMode.zig");
+const Assets = @import("../data/Assets.zig");
+const FileSystem = @import("common").FileSystem;
+const ModeManager = @import("../logic/mode.zig").ModeManager;
+const Dungeon = @import("../logic/battle/Dungeon.zig");
 
-pub fn onEnterWorldCsReq(context: *network.Context, _: pb.EnterWorldCsReq) !void {
+pub fn onEnterWorldCsReq(
+    txn: *network.Transaction(pb.EnterWorldCsReq),
+    events: *EventQueue,
+    hall_comp: *PlayerHallComponent,
+) !void {
     var retcode: i32 = 1;
-    defer context.respond(pb.EnterWorldScRsp{ .retcode = retcode }) catch {};
-    defer if (retcode == 0) context.connection.flushSync(context.arena, context.io) catch {};
+    defer txn.respond(.{ .retcode = retcode }) catch {};
 
-    const player = try context.connection.getPlayer();
-    try switchSection(context, player);
+    try events.enqueue(.hall_section_switch, .{ .section_id = hall_comp.info.section_id });
+    retcode = 0;
+}
+
+pub fn onEnterSectionCompleteCsReq(txn: *network.Transaction(pb.EnterSectionCompleteCsReq)) !void {
+    try txn.respond(.{});
+}
+
+pub fn onLeaveCurSceneCsReq(
+    txn: *network.Transaction(pb.LeaveCurSceneCsReq),
+    events: *EventQueue,
+    hall_comp: *PlayerHallComponent,
+    cur_dungeon: *?Dungeon,
+    mem: Memory,
+) !void {
+    var retcode: i32 = 1;
+    defer txn.respond(.{ .retcode = retcode }) catch {};
+
+    if (cur_dungeon.*) |*dungeon| dungeon.deinit(mem.gpa);
+    cur_dungeon.* = null;
+
+    try events.enqueue(.hall_section_switch, .{ .section_id = hall_comp.info.section_id });
+    retcode = 0;
+}
+
+pub fn onEnterSectionCsReq(
+    txn: *network.Transaction(pb.EnterSectionCsReq),
+    events: *EventQueue,
+) !void {
+    var retcode: i32 = 1;
+    defer txn.respond(.{ .retcode = retcode }) catch {};
+
+    try events.enqueue(.hall_section_switch, .{
+        .section_id = txn.message.section_id,
+        .transform = txn.message.transform_id,
+    });
 
     retcode = 0;
 }
 
-pub fn onEnterSectionCompleteCsReq(context: *network.Context, _: pb.EnterSectionCompleteCsReq) !void {
-    try context.respond(pb.EnterSectionCompleteScRsp{});
-}
-
-pub fn onLeaveCurSceneCsReq(context: *network.Context, _: pb.LeaveCurSceneCsReq) !void {
+pub fn onSavePosInMainCityCsReq(
+    txn: *network.Transaction(pb.SavePosInMainCityCsReq),
+    events: *EventQueue,
+    hall: *HallMode,
+    mem: Memory,
+) !void {
     var retcode: i32 = 1;
-    defer context.respond(pb.LeaveCurSceneScRsp{ .retcode = retcode }) catch {};
-    defer if (retcode == 0) context.connection.flushSync(context.arena, context.io) catch {};
+    defer txn.respond(.{ .retcode = retcode }) catch {};
 
-    const player = try context.connection.getPlayer();
-    try switchSection(context, player);
+    if (txn.message.real_save and hall.section_id == txn.message.section_id) {
+        const transform = try Hall.Transform.fromProto(txn.message.position orelse return error.NoPositionSpecified);
 
-    retcode = 0;
-}
-
-pub fn onEnterSectionCsReq(context: *network.Context, request: pb.EnterSectionCsReq) !void {
-    var retcode: i32 = 1;
-    defer context.respond(pb.EnterSectionScRsp{ .retcode = retcode }) catch {};
-    defer if (retcode == 0) context.connection.flushSync(context.arena, context.io) catch {};
-
-    const player = try context.connection.getPlayer();
-    player.hall.section_id = request.section_id;
-
-    try switchSection(context, player);
-    const section = &player.cur_section.?;
-    const new_position: Hall.Section.Position = .{
-        .born_transform = try context.gpa.dupe(u8, request.transform_id),
-    };
-
-    section.position.deinit(context.gpa);
-    section.position = new_position;
-
-    retcode = 0;
-}
-
-pub fn onSavePosInMainCityCsReq(context: *network.Context, request: pb.SavePosInMainCityCsReq) !void {
-    var retcode: i32 = 1;
-    defer context.respond(pb.SavePosInMainCityScRsp{ .retcode = retcode }) catch {};
-
-    const player = try context.connection.getPlayer();
-    const section = &(player.cur_section orelse return error.NotInHallSection);
-
-    if (request.real_save and player.hall.section_id == request.section_id) {
-        const transform = try Hall.Transform.fromProto(request.position orelse return error.NoPositionSpecified);
-
-        section.position.deinit(context.gpa);
-        section.position = .{ .custom = transform };
-        player.sync.save_pos_in_main_city = true;
+        hall.section_info.position.deinit(mem.gpa);
+        hall.section_info.position = .{ .custom = transform };
     }
 
+    try events.enqueue(.hall_position_changed, .{});
     retcode = 0;
 }
 
-fn switchSection(context: *network.Context, player: *Player) !void {
-    const log = std.log.scoped(.section_switch);
+pub fn onInteractWithUnitCsReq(
+    txn: *network.Transaction(pb.InteractWithUnitCsReq),
+    events: *EventQueue,
+    hall_mode: *HallMode,
+) !void {
+    const log = std.log.scoped(.interact_with_unit);
 
-    player.performHallTransition(context.gpa, context.fs, context.connection.assets) catch |err| switch (err) {
-        error.InvalidSectionID => {
-            log.err(
-                "section id {} is invalid, falling back to default section ({})",
-                .{ player.hall.section_id, Hall.default_section_id },
-            );
-            player.hall.section_id = Hall.default_section_id;
-            try player.performHallTransition(context.gpa, context.fs, context.connection.assets);
-        },
-        else => return err,
-    };
-}
-
-pub fn onInteractWithUnitCsReq(context: *network.Context, request: pb.InteractWithUnitCsReq) !void {
     var retcode: i32 = 1;
-    defer context.respond(pb.InteractWithUnitScRsp{ .retcode = retcode }) catch {};
-    defer if (retcode == 0) context.connection.flushSync(context.arena, context.io) catch {};
+    defer txn.respond(.{ .retcode = retcode }) catch {};
 
-    const player = try context.connection.getPlayer();
-    try player.interactWithUnit(
-        context.gpa,
-        context.fs,
-        context.connection.assets,
-        @intCast(request.npc_tag_id),
-        @intCast(request.interact_id),
-    );
+    const interaction_type: pb.InteractTarget = txn.message.type orelse @enumFromInt(0);
+    if (interaction_type == .none) return error.InvalidInteractType;
+
+    const interact_index: usize = @intCast(@intFromEnum(interaction_type) - 1);
+
+    const npc = hall_mode.npcs.getPtr(@intCast(txn.message.npc_tag_id)) orelse {
+        log.warn("npc with tag {} doesn't exist", .{txn.message.npc_tag_id});
+        return error.NpcTagNotExist;
+    };
+
+    if (npc.interacts[interact_index] == null or npc.interacts[interact_index].?.id != txn.message.interact_id) {
+        log.warn(
+            "invalid interaction {}:{t}:{}",
+            .{ txn.message.npc_tag_id, interaction_type, txn.message.interact_id },
+        );
+        return error.InvalidInteractID;
+    }
+
+    try events.enqueue(.start_event_graph, .{
+        .type = .interact,
+        .entry_event = .on_interact,
+        .event_graph_id = @intCast(txn.message.interact_id),
+    });
 
     retcode = 0;
 }

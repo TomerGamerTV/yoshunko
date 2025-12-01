@@ -1,8 +1,9 @@
 const std = @import("std");
 const Assets = @import("../data/Assets.zig");
-const Player = @import("../fs/Player.zig");
 const Avatar = @import("../fs/Avatar.zig");
 const Equip = @import("../fs/Equip.zig");
+const PlayerAvatarComponent = @import("./component/player/PlayerAvatarComponent.zig");
+const PlayerItemComponent = @import("./component/player/PlayerItemComponent.zig");
 const Allocator = std.mem.Allocator;
 const PropMap = std.AutoArrayHashMapUnmanaged(PropertyType, i32);
 
@@ -16,10 +17,16 @@ const AvatarLevelAdvanceTemplate = templates.AvatarLevelAdvanceTemplate;
 
 const log = std.log.scoped(.prop_calc);
 
-pub fn makePropertyMap(player: *const Player, arena: Allocator, assets: *const Assets, avatar_id: u32) !PropMap {
+pub fn makePropertyMap(
+    avatar_comp: *const PlayerAvatarComponent,
+    item_comp: *const PlayerItemComponent,
+    arena: Allocator,
+    assets: *const Assets,
+    avatar_id: u32,
+) !PropMap {
     var map: PropMap = .empty;
 
-    const avatar = player.avatar_map.getPtr(avatar_id) orelse return error.AvatarNotUnlocked;
+    const avatar = avatar_comp.avatar_map.getPtr(avatar_id) orelse return error.AvatarNotUnlocked;
 
     const battle_template = assets.templates.getConfigByKey(.avatar_battle_template_tb, avatar_id) orelse return error.MissingBattleTemplate;
     try initBaseProperties(&map, arena, battle_template);
@@ -36,7 +43,7 @@ pub fn makePropertyMap(player: *const Player, arena: Allocator, assets: *const A
     }
 
     if (avatar.cur_weapon_uid != 0) blk: {
-        const info = player.weapon_map.getPtr(avatar.cur_weapon_uid) orelse break :blk;
+        const info = item_comp.weapon_map.getPtr(avatar.cur_weapon_uid) orelse break :blk;
         const weapon_template = assets.templates.getConfigByKey(.weapon_template_tb, info.id) orelse return error.MissingWeaponTemplate;
         const rarity: u32 = @mod(@divFloor(info.id, 1000), 10);
 
@@ -49,7 +56,7 @@ pub fn makePropertyMap(player: *const Player, arena: Allocator, assets: *const A
     var equipment: [Avatar.equipment_count]*const Equip = undefined;
     var equipment_count: usize = 0;
     for (avatar.dressed_equip) |maybe_equip_uid| if (maybe_equip_uid) |equip_uid| {
-        if (player.equip_map.getPtr(equip_uid)) |equip| {
+        if (item_comp.equip_map.getPtr(equip_uid)) |equip| {
             equipment[equipment_count] = equip;
             equipment_count += 1;
         }

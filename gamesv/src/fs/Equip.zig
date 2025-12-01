@@ -52,8 +52,8 @@ pub fn toProto(equip: *const Equip, uid: u32, arena: Allocator) !pb.EquipInfo {
         });
     }
 
-    equip_info.propertys = properties.items;
-    equip_info.sub_propertys = sub_properties.items;
+    equip_info.propertys = properties;
+    equip_info.sub_propertys = sub_properties;
 
     return equip_info;
 }

@@ -23,17 +23,17 @@ pub const Transform = struct {
 
     pub fn toProto(t: Transform, arena: Allocator) !pb.Transform {
         return .{
-            .position = try arena.dupe(f64, t.position[0..]),
-            .rotation = try arena.dupe(f64, t.rotation[0..]),
+            .position = .fromOwnedSlice(try arena.dupe(f64, t.position[0..])),
+            .rotation = .fromOwnedSlice(try arena.dupe(f64, t.rotation[0..])),
         };
     }
 
     pub fn fromProto(t: pb.Transform) !Transform {
-        if (t.position.len != 3 or t.rotation.len != 3) return error.IllFormedTransform;
+        if (t.position.items.len != 3 or t.rotation.items.len != 3) return error.IllFormedTransform;
 
         var result: Transform = undefined;
-        @memcpy(result.position[0..], t.position);
-        @memcpy(result.rotation[0..], t.rotation);
+        @memcpy(result.position[0..], t.position.items);
+        @memcpy(result.rotation[0..], t.rotation.items);
 
         return result;
     }
@@ -94,11 +94,11 @@ pub const Npc = struct {
                 .scale_z = interact.scale[2],
                 .scale_w = interact.scale[3],
                 .scale_r = interact.scale[4],
-                .interact_target_list = try arena.dupe(pb.InteractTarget, &.{switch (i) {
+                .interact_target_list = .fromOwnedSlice(try arena.dupe(pb.InteractTarget, &.{switch (i) {
                     0 => .trigger_box,
                     1 => .npc,
                     else => unreachable,
-                }}),
+                }})),
                 .name = try arena.dupe(u8, interact.name),
             };
 
@@ -110,12 +110,12 @@ pub const Npc = struct {
                 };
             }
 
-            interact_info.participators = participators;
+            interact_info.participators = .fromOwnedSlice(participators);
             interacts_info[j] = .{ .key = interact.id, .value = interact_info };
             j += 1;
         }
 
-        info.interacts_info = interacts_info;
+        info.interacts_info = .fromOwnedSlice(interacts_info);
         return info;
     }
 };

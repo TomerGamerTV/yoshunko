@@ -15,8 +15,22 @@ const interact_config_path = level_process_dir ++ "MainCity/Interact";
 main_city: MainCity,
 interacts: std.AutoArrayHashMapUnmanaged(u32, EventGraph),
 
+pub fn getEventGraph(collection: *const EventGraphCollection, graph_type: EventGraphType, id: u32) ?EventGraph {
+    return switch (graph_type) {
+        .interact => collection.interacts.get(id),
+        .section => for (collection.main_city.sections) |s| {
+            if (s.id == id) return s;
+        } else null,
+    };
+}
+
 pub const MainCity = struct {
     sections: []const EventGraph,
+};
+
+pub const EventGraphType = enum {
+    section,
+    interact,
 };
 
 pub const EventGraph = struct {

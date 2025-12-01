@@ -48,7 +48,7 @@ pub fn toProto(avatar: *const Avatar, id: u32, allocator: Allocator) !pb.AvatarI
         .exp = avatar.exp,
         .rank = avatar.rank,
         .unlocked_talent_num = avatar.unlocked_talent_num,
-        .talent_switch_list = try allocator.dupe(bool, avatar.talent_switch_list[0..]),
+        .talent_switch_list = .fromOwnedSlice(try allocator.dupe(bool, avatar.talent_switch_list[0..])),
         .passive_skill_level = avatar.passive_skill_level,
         .cur_weapon_uid = avatar.cur_weapon_uid,
         .show_weapon_type = @enumFromInt(@intFromEnum(avatar.show_weapon_type)),
@@ -59,29 +59,22 @@ pub fn toProto(avatar: *const Avatar, id: u32, allocator: Allocator) !pb.AvatarI
         .is_awake_enabled = avatar.is_awake_enabled,
     };
 
-    var dressed_equip = try std.ArrayList(pb.DressedEquip).initCapacity(allocator, equipment_count);
-    defer dressed_equip.deinit(allocator);
-
+    try avatar_info.dressed_equip_list.ensureTotalCapacity(allocator, equipment_count);
     for (avatar.dressed_equip, 1..) |maybe_uid, index| {
         const uid = maybe_uid orelse continue;
-        dressed_equip.appendAssumeCapacity(.{
+        avatar_info.dressed_equip_list.appendAssumeCapacity(.{
             .equip_uid = uid,
             .index = @intCast(index),
         });
     }
 
-    avatar_info.dressed_equip_list = try dressed_equip.toOwnedSlice(allocator);
-
-    const skills = try allocator.alloc(pb.AvatarSkillLevel, avatar.skill_type_level.len);
-
-    for (avatar.skill_type_level, 0..) |skill, i| {
-        skills[i] = .{
+    try avatar_info.skill_type_level.ensureTotalCapacity(allocator, avatar.skill_type_level.len);
+    for (avatar.skill_type_level) |skill| {
+        avatar_info.skill_type_level.appendAssumeCapacity(.{
             .skill_type = @intFromEnum(skill.type),
             .level = skill.level,
-        };
+        });
     }
-
-    avatar_info.skill_type_level = skills;
 
     return avatar_info;
 }

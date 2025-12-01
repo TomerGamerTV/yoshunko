@@ -1,55 +1,68 @@
 const std = @import("std");
+const Io = std.Io;
 const pb = @import("proto").pb;
 const network = @import("../network.zig");
-const Player = @import("../fs/Player.zig");
-const Hall = @import("../fs/Hall.zig");
+const State = @import("../network/State.zig");
+const Memory = State.Memory;
+const Assets = @import("../data/Assets.zig");
+const PlayerHadalZoneComponent = @import("../logic/component/player/PlayerHadalZoneComponent.zig");
+const EventQueue = @import("../logic/EventQueue.zig");
 
-pub fn onGetHadalZoneDataCsReq(context: *network.Context, _: pb.GetHadalZoneDataCsReq) !void {
-    errdefer context.respond(pb.GetHadalZoneDataScRsp{ .retcode = 1 }) catch {};
-    const player = try context.connection.getPlayer();
+pub fn onGetHadalZoneDataCsReq(
+    txn: *network.Transaction(pb.GetHadalZoneDataCsReq),
+    io: Io,
+    mem: Memory,
+    assets: *const Assets,
+    hadal_comp: *PlayerHadalZoneComponent,
+) !void {
+    errdefer txn.respond(.{ .retcode = 1 }) catch {};
 
-    const entrance_list = try context.arena.alloc(pb.HadalEntranceInfo, player.hadal_zone.entrances.len);
-    for (player.hadal_zone.entrances, 0..) |entrance, i| {
+    const entrance_list = try mem.arena.alloc(pb.HadalEntranceInfo, hadal_comp.info.entrances.len);
+    for (hadal_comp.info.entrances, 0..) |entrance, i| {
         const entrance_type = entrance.entranceType();
         entrance_list[i] = .{
             .entrance_type = entrance_type,
             .entrance_id = entrance.id,
             .state = @enumFromInt(3), // :three:
-            .cur_zone_record = try player.hadal_zone.buildZoneRecord(
-                context.io,
-                context.arena,
-                context.connection.assets,
+            .cur_zone_record = try hadal_comp.info.buildZoneRecord(
+                io,
+                mem.arena,
+                assets,
                 entrance_type,
                 entrance.zone_id,
             ),
         };
     }
 
-    try context.respond(pb.GetHadalZoneDataScRsp{
-        .retcode = 0,
-        .hadal_entrance_list = entrance_list,
-    });
+    try txn.respond(.{ .hadal_entrance_list = .fromOwnedSlice(entrance_list) });
 }
 
-pub fn onSetupHadalZoneRoomCsReq(context: *network.Context, request: pb.SetupHadalZoneRoomCsReq) !void {
+pub fn onSetupHadalZoneRoomCsReq(
+    txn: *network.Transaction(pb.SetupHadalZoneRoomCsReq),
+    mem: Memory,
+    events: *EventQueue,
+    hadal_comp: *PlayerHadalZoneComponent,
+) !void {
     var retcode: i32 = 1;
-    defer context.respond(pb.SetupHadalZoneRoomScRsp{ .retcode = retcode }) catch {};
-    defer if (retcode == 0) context.connection.flushSync(context.arena, context.io) catch {};
-    const player = try context.connection.getPlayer();
+    defer txn.respond(.{ .retcode = retcode }) catch {};
 
-    for (request.layer_setup_list) |setup| {
-        const room = try player.hadal_zone.getOrCreateSavedRoom(context.gpa, request.zone_id, setup.layer_index);
+    for (txn.message.layer_setup_list.items) |setup| {
+        const room = try hadal_comp.info.getOrCreateSavedRoom(
+            mem.gpa,
+            txn.message.zone_id,
+            setup.layer_index,
+        );
 
         if (setup.layer_item_id != 0) {
             room.layer_item_id = setup.layer_item_id;
         }
 
-        const new_avatar_list = try context.gpa.dupe(u32, setup.avatar_id_list);
-        context.gpa.free(room.avatar_id_list);
+        const new_avatar_list = try mem.gpa.dupe(u32, setup.avatar_id_list.items);
+        mem.gpa.free(room.avatar_id_list);
         room.avatar_id_list = new_avatar_list;
         room.buddy_id = setup.buddy_id;
     }
 
-    player.sync.hadal_zone_changed = true;
+    try events.enqueue(.hadal_zone_modified, .{});
     retcode = 0;
 }

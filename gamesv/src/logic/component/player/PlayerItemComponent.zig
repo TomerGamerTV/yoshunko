@@ -1,11 +1,34 @@
+const PlayerItemComponent = @This();
 const std = @import("std");
-const FileSystem = @import("common").FileSystem;
-const Assets = @import("../data/Assets.zig");
-const file_util = @import("file_util.zig");
-
+const comp_util = @import("../comp_util.zig");
+const file_util = @import("../../../fs/file_util.zig");
+const Weapon = @import("../../../fs/Weapon.zig");
+const Equip = @import("../../../fs/Equip.zig");
+const Assets = @import("../../../data/Assets.zig");
 const Allocator = std.mem.Allocator;
+const FileSystem = @import("common").FileSystem;
 
-pub fn loadAll(
+player_uid: u32,
+weapon_map: std.AutoArrayHashMapUnmanaged(u32, Weapon) = .empty,
+equip_map: std.AutoArrayHashMapUnmanaged(u32, Equip) = .empty,
+material_map: std.AutoArrayHashMapUnmanaged(u32, i32) = .empty,
+
+pub fn init(gpa: Allocator, fs: *FileSystem, assets: *const Assets, player_uid: u32) !PlayerItemComponent {
+    return .{
+        .player_uid = player_uid,
+        .weapon_map = try comp_util.loadItems(Weapon, gpa, fs, assets, player_uid, true),
+        .equip_map = try comp_util.loadItems(Equip, gpa, fs, assets, player_uid, true),
+        .material_map = try loadMaterialMap(gpa, fs, assets, player_uid),
+    };
+}
+
+pub fn deinit(comp: *PlayerItemComponent, gpa: Allocator) void {
+    comp_util.freeMap(gpa, &comp.weapon_map);
+    comp_util.freeMap(gpa, &comp.equip_map);
+    comp.material_map.deinit(gpa);
+}
+
+fn loadMaterialMap(
     gpa: Allocator,
     fs: *FileSystem,
     assets: ?*const Assets,
@@ -26,15 +49,15 @@ pub fn loadAll(
         }
     } else {
         if (assets) |a| {
-            try addDefaults(gpa, a, &map);
-            try saveAll(arena, fs, player_uid, &map);
+            try addDefaultMaterials(gpa, a, &map);
+            try saveMaterials(arena, fs, player_uid, &map);
         }
     }
 
     return map;
 }
 
-pub fn saveAll(arena: Allocator, fs: *FileSystem, player_uid: u32, map: *const std.AutoArrayHashMapUnmanaged(u32, i32)) !void {
+pub fn saveMaterials(arena: Allocator, fs: *FileSystem, player_uid: u32, map: *const std.AutoArrayHashMapUnmanaged(u32, i32)) !void {
     const tuple_list = try arena.alloc(struct { u32, i32 }, map.count());
     var iterator = map.iterator();
     var i: usize = 0;
@@ -48,7 +71,7 @@ pub fn saveAll(arena: Allocator, fs: *FileSystem, player_uid: u32, map: *const s
     try fs.writeFile(try std.fmt.allocPrint(arena, "player/{}/materials", .{player_uid}), materials);
 }
 
-fn addDefaults(gpa: Allocator, assets: *const Assets, map: *std.AutoArrayHashMapUnmanaged(u32, i32)) !void {
+fn addDefaultMaterials(gpa: Allocator, assets: *const Assets, map: *std.AutoArrayHashMapUnmanaged(u32, i32)) !void {
     for (assets.templates.avatar_skin_base_template_tb.payload.data) |skin_template| {
         try map.put(gpa, skin_template.id, 1);
     }

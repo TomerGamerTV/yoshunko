@@ -83,7 +83,7 @@ pub fn buildZoneRecord(
 
         for (hz.saved_rooms) |room| {
             if (room.zone_id == zone_id and room.layer_index == zone_template.layer_index) {
-                layer_record.avatar_id_list = try arena.dupe(u32, room.avatar_id_list);
+                try layer_record.avatar_id_list.appendSlice(arena, room.avatar_id_list);
                 layer_record.buddy_id = room.buddy_id;
                 layer_record.layer_item_id = room.layer_item_id;
                 break;
@@ -96,7 +96,7 @@ pub fn buildZoneRecord(
     const timestamp = (try std.Io.Clock.real.now(io)).toSeconds();
     return .{
         .zone_id = zone_id,
-        .layer_record_list = layer_record_list.items,
+        .layer_record_list = layer_record_list,
         .begin_timestamp = if (entrance_type == .scheduled)
             timestamp - (3600 * 24)
         else

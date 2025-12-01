@@ -1,31 +1,42 @@
 const std = @import("std");
 const pb = @import("proto").pb;
-const Player = @import("../fs/Player.zig");
 const network = @import("../network.zig");
 const property_util = @import("../logic/property_util.zig");
+const PlayerAvatarComponent = @import("../logic/component/player/PlayerAvatarComponent.zig");
+const PlayerItemComponent = @import("../logic/component/player/PlayerItemComponent.zig");
+const Dungeon = @import("../logic/battle/Dungeon.zig");
+const AvatarUnit = @import("../logic/battle/AvatarUnit.zig");
+const ModeManager = @import("../logic/mode.zig").ModeManager;
+const HollowMode = @import("../logic/mode/HollowMode.zig");
+const Memory = @import("../network/State.zig").Memory;
+const EventQueue = @import("../logic/EventQueue.zig");
+const Assets = @import("../data/Assets.zig");
+const Allocator = std.mem.Allocator;
 
-pub fn onStartTrainingQuestCsReq(context: *network.Context, request: pb.StartTrainingQuestCsReq) !void {
+pub fn onStartTrainingQuestCsReq(
+    txn: *network.Transaction(pb.StartTrainingQuestCsReq),
+    events: *EventQueue,
+    cur_dungeon: *?Dungeon,
+    mode_mgr: *ModeManager,
+    mem: Memory,
+) !void {
     var retcode: i32 = 1;
-    defer context.respond(pb.StartTrainingQuestScRsp{ .retcode = retcode }) catch {};
+    defer txn.respond(.{ .retcode = retcode }) catch {};
 
-    const dungeon_package_info = try makeDungeonPackage(context, &.{request.avatar_id_list});
+    if (cur_dungeon.* != null) return error.AlreadyInDungeon;
+    cur_dungeon.* = .{ .quest_id = 12254000, .quest_type = 0 };
 
-    try context.notify(pb.EnterSceneScNotify{
-        .scene = .{
-            .scene_type = 3,
-            .scene_id = 19800014,
-            .play_type = 290,
-            .fight_scene_data = .{
-                .scene_reward = .{},
-                .scene_perform = .{},
-            },
-        },
-        .dungeon = .{
-            .quest_id = 12254000,
-            .dungeon_package_info = dungeon_package_info,
-        },
+    mode_mgr.change(mem.gpa, .hollow, .{
+        .battle_event_id = 19800014,
+        .play_type = .training_room,
+        .scene_data = .{ .fight = .{} },
+        .avatar_ids = try mem.gpa.dupe(
+            []const u32,
+            &.{try mem.gpa.dupe(u32, txn.message.avatar_id_list.items)},
+        ),
     });
 
+    try events.enqueue(.game_mode_transition, .{});
     retcode = 0;
 }
 
@@ -40,68 +51,72 @@ const hadal_zone_enemy_property_scale: u32 = 19;
 const hadal_zone_bosschallenge_enemy_property_scale: u32 = 33;
 const hadal_zone_impact_battle_enemy_property_scale: u32 = 61;
 
-pub fn onStartHadalZoneBattleCsReq(context: *network.Context, request: pb.StartHadalZoneBattleCsReq) !void {
+pub fn onStartHadalZoneBattleCsReq(
+    txn: *network.Transaction(pb.StartHadalZoneBattleCsReq),
+    events: *EventQueue,
+    cur_dungeon: *?Dungeon,
+    mode_mgr: *ModeManager,
+    avatar_comp: *PlayerAvatarComponent,
+    item_comp: *PlayerItemComponent,
+    assets: *const Assets,
+    mem: Memory,
+) !void {
     var retcode: i32 = 1;
-    defer context.respond(pb.StartHadalZoneBattleScRsp{ .retcode = retcode }) catch {};
+    defer txn.respond(.{ .retcode = retcode }) catch {};
 
-    const avatar_vec: []const []const u32 = &.{
-        request.first_room_avatar_id_list,
-        request.second_room_avatar_id_list,
-    };
+    if (cur_dungeon.* != null) return error.AlreadyInDungeon;
 
-    var dungeon: pb.DungeonInfo = .{
-        .dungeon_package_info = try makeDungeonPackage(context, avatar_vec),
-        .avatar_list = try makeAvatarUnitList(context, avatar_vec),
-    };
+    const avatar_vec: []const []const u32 = try mem.gpa.dupe([]const u32, &.{
+        try mem.gpa.dupe(u32, txn.message.first_room_avatar_id_list.items),
+        try mem.gpa.dupe(u32, txn.message.second_room_avatar_id_list.items),
+    });
 
-    var zone_group = request.zone_id;
+    var zone_group = txn.message.zone_id;
     while ((zone_group / 100) > 0) zone_group /= 10;
 
     const layer_id: u32 = switch (zone_group) {
-        hadal_static_zone_group => (request.zone_id * 100) + request.layer_index,
-        hadal_periodic_zone_group => switch (request.room_index) {
-            0 => (hadal_periodic_zone_id * 100) + request.layer_index,
-            else => (hadal_periodic_with_rooms_zone_id * 100) + (request.layer_index * 10) + request.room_index,
+        hadal_static_zone_group => (txn.message.zone_id * 100) + txn.message.layer_index,
+        hadal_periodic_zone_group => switch (txn.message.room_index) {
+            0 => (hadal_periodic_zone_id * 100) + txn.message.layer_index,
+            else => (hadal_periodic_with_rooms_zone_id * 100) + (txn.message.layer_index * 10) + txn.message.room_index,
         },
-        hadal_zone_bosschallenge_zone_group => hadal_zone_bosschallenge_zone_id * 100 + request.layer_index,
+        hadal_zone_bosschallenge_zone_group => hadal_zone_bosschallenge_zone_id * 100 + txn.message.layer_index,
         else => return error.InvalidZoneID,
     };
 
-    const assets = context.connection.assets;
     const hadal_zone_quest_template = assets.templates.getConfigByKey(.hadal_zone_quest_template_tb, layer_id) orelse return error.MissingQuestForLayer;
     const quest_config_template = assets.templates.getConfigByKey(.quest_config_template_tb, hadal_zone_quest_template.quest_id) orelse return error.MissingQuestForLayer;
 
-    dungeon.quest_type = quest_config_template.quest_type;
-    dungeon.quest_id = @intCast(hadal_zone_quest_template.quest_id);
+    cur_dungeon.* = .{
+        .quest_type = quest_config_template.quest_type,
+        .quest_id = @intCast(hadal_zone_quest_template.quest_id),
+        .avatar_units = try makeAvatarUnits(mem.gpa, avatar_comp, item_comp, assets, avatar_vec),
+    };
 
-    const play_type = getHadalZonePlayType(request.zone_id, request.room_index);
-    try context.notify(pb.EnterSceneScNotify{
-        .scene = .{
-            .scene_type = 9,
-            .scene_id = layer_id,
-            .play_type = @intFromEnum(play_type),
-            .enemy_property_scale = switch (play_type) {
-                .hadal_zone_bosschallenge => hadal_zone_bosschallenge_enemy_property_scale,
-                .hadal_zone_impact_battle => hadal_zone_impact_battle_enemy_property_scale,
-                else => hadal_zone_enemy_property_scale,
-            },
-            .hadal_zone_scene_data = .{
-                .scene_perform = .{},
-                .zone_id = request.zone_id,
-                .layer_index = request.layer_index,
-                .room_index = request.room_index,
-                .layer_item_id = request.layer_item_id,
-                .first_room_avatar_id_list = request.first_room_avatar_id_list,
-                .second_room_avatar_id_list = request.second_room_avatar_id_list,
-            },
+    const play_type = getHadalZonePlayType(txn.message.zone_id, txn.message.room_index);
+
+    mode_mgr.change(mem.gpa, .hollow, .{
+        .battle_event_id = 19800014,
+        .play_type = play_type,
+        .scene_data = .{ .hadal_zone = .{
+            .zone_id = txn.message.zone_id,
+            .layer_index = txn.message.layer_index,
+            .room_index = txn.message.room_index,
+            .layer_item_id = txn.message.layer_item_id,
+        } },
+        .avatar_ids = avatar_vec,
+        .enemy_property_scale = switch (play_type) {
+            .hadal_zone_bosschallenge => hadal_zone_bosschallenge_enemy_property_scale,
+            .hadal_zone_impact_battle => hadal_zone_impact_battle_enemy_property_scale,
+            else => hadal_zone_enemy_property_scale,
         },
-        .dungeon = dungeon,
     });
 
+    try events.enqueue(.game_mode_transition, .{});
     retcode = 0;
 }
 
-fn getHadalZonePlayType(zone_id: u32, room_index: u32) LocalPlayType {
+fn getHadalZonePlayType(zone_id: u32, room_index: u32) HollowMode.LocalPlayType {
     if (zone_id == hadal_zone_alivecount_zone_id) return .hadal_zone_alivecount;
 
     var zone_group = zone_id;
@@ -115,151 +130,20 @@ fn getHadalZonePlayType(zone_id: u32, room_index: u32) LocalPlayType {
     };
 }
 
-fn makeDungeonPackage(context: *network.Context, avatar_vec: []const []const u32) !pb.DungeonPackageInfo {
-    const player = try context.connection.getPlayer();
+pub fn onEndBattleCsReq(txn: *network.Transaction(pb.EndBattleCsReq)) !void {
+    try txn.respond(.{ .fight_settle = .{} });
+}
 
-    var avatar_list = try context.arena.alloc(pb.AvatarInfo, vecLen(avatar_vec));
-    var weapon_list: std.ArrayList(pb.WeaponInfo) = .empty;
-    var equip_list: std.ArrayList(pb.EquipInfo) = .empty;
+fn makeAvatarUnits(gpa: Allocator, avatar_comp: *const PlayerAvatarComponent, item_comp: *const PlayerItemComponent, assets: *const Assets, avatars: []const []const u32) !std.AutoArrayHashMapUnmanaged(u32, AvatarUnit) {
+    var map: std.AutoArrayHashMapUnmanaged(u32, AvatarUnit) = .empty;
 
-    var i: usize = 0;
-    for (avatar_vec) |list| {
-        for (list) |avatar_id| {
-            const avatar = player.avatar_map.getPtr(avatar_id) orelse return error.NoSuchAvatar;
-            avatar_list[i] = try avatar.toProto(avatar_id, context.arena);
+    for (avatars) |list| for (list) |avatar_id| {
+        const properties = try property_util.makePropertyMap(avatar_comp, item_comp, gpa, assets, avatar_id);
 
-            if (avatar.cur_weapon_uid != 0) {
-                if (player.weapon_map.getPtr(avatar.cur_weapon_uid)) |weapon| {
-                    try weapon_list.append(context.arena, try weapon.toProto(avatar.cur_weapon_uid, context.arena));
-                }
-            }
-
-            for (avatar.dressed_equip) |maybe_uid| {
-                const uid = maybe_uid orelse continue;
-                if (player.equip_map.getPtr(uid)) |equip| {
-                    try equip_list.append(context.arena, try equip.toProto(uid, context.arena));
-                }
-            }
-
-            i += 1;
-        }
-    }
-
-    return .{
-        .avatar_list = avatar_list,
-        .weapon_list = weapon_list.items,
-        .equip_list = equip_list.items,
+        try map.put(gpa, avatar_id, .{
+            .properties = properties,
+        });
     };
+
+    return map;
 }
-
-pub fn makeAvatarUnitList(
-    context: *network.Context,
-    avatar_vec: []const []const u32,
-) ![]const pb.AvatarUnitInfo {
-    const player = try context.connection.getPlayer();
-
-    var unit_list = try context.arena.alloc(pb.AvatarUnitInfo, vecLen(avatar_vec));
-    var i: usize = 0;
-
-    for (avatar_vec) |list| {
-        for (list) |avatar_id| {
-            const property_map = try property_util.makePropertyMap(
-                player,
-                context.arena,
-                context.connection.assets,
-                avatar_id,
-            );
-
-            const properties = try context.arena.alloc(pb.MapEntry(u32, i32), property_map.count());
-
-            var iterator = property_map.iterator();
-            var j: usize = 0;
-            while (iterator.next()) |kv| : (j += 1) {
-                properties[j] = .{
-                    .key = @intFromEnum(kv.key_ptr.*),
-                    .value = kv.value_ptr.*,
-                };
-            }
-
-            unit_list[i] = .{
-                .avatar_id = avatar_id,
-                .properties = properties,
-            };
-
-            i += 1;
-        }
-    }
-
-    return unit_list;
-}
-
-fn vecLen(vec: anytype) usize {
-    var len: usize = 0;
-    for (vec) |list| len += list.len;
-
-    return len;
-}
-
-pub fn onEndBattleCsReq(context: *network.Context, _: pb.EndBattleCsReq) !void {
-    try context.respond(pb.EndBattleScRsp{
-        .retcode = 0,
-        .fight_settle = .{},
-    });
-}
-
-pub const LocalPlayType = enum(u32) {
-    unkown = 0,
-    archive_battle = 201,
-    chess_board_battle = 202,
-    guide_special = 203,
-    chess_board_longfihgt_battle = 204,
-    level_zero = 205,
-    daily_challenge = 206,
-    rally_long_fight = 207,
-    dual_elite = 208,
-    hadal_zone = 209,
-    boss_battle = 210,
-    big_boss_battle = 211,
-    archive_long_fight = 212,
-    avatar_demo_trial = 213,
-    mp_big_boss_battle = 214,
-    boss_little_battle_longfight = 215,
-    operation_beta_demo = 216,
-    big_boss_battle_longfight = 217,
-    boss_rush_battle = 218,
-    operation_team_coop = 219,
-    boss_nest_hard_battle = 220,
-    side_scrolling_thegun_battle = 221,
-    hadal_zone_alivecount = 222,
-    babel_tower = 223,
-    hadal_zone_bosschallenge = 224,
-    s2_rogue_battle = 226,
-    buddy_towerdefense_battle = 227,
-    mini_scape_battle = 228,
-    mini_scape_short_battle = 229,
-    activity_combat_pause = 230,
-    coin_brushing_battle = 231,
-    turn_based_battle = 232,
-    bangboo_royale = 240,
-    side_scrolling_captain = 241,
-    smash_bro = 242,
-    pure_hollow_battle = 280,
-    pure_hollow_battle_longhfight = 281,
-    pure_hollow_battle_hardmode = 282,
-    training_room = 290,
-    map_challenge_battle = 291,
-    training_root_tactics = 292,
-    bangboo_dream_rogue_battle = 293,
-    target_shooting_battle = 294,
-    bangboo_autobattle = 295,
-    mechboo_battle = 296,
-    summer_surfing = 297,
-    summer_shooting = 298,
-    void_front_battle_boss = 299,
-    void_front_battle = 300,
-    void_front_buff_battle = 301,
-    activity_combat_pause_annihilate = 302,
-    hadal_zone_impact_battle = 303,
-    mechboo_battlev2 = 304,
-    operation_team_coop_stylish = 305,
-};

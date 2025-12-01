@@ -53,7 +53,7 @@ fn encodeField(w: *Io.Writer, value: anytype, comptime desc: struct { u32, u32 }
     const Value = @TypeOf(value);
     const number, const xor = desc;
     if (comptime isRepeated(Value)) {
-        for (value) |item| try encodeField(w, item, desc, desc_namespace);
+        for (value.items) |item| try encodeField(w, item, desc, desc_namespace);
     } else if (comptime isOptional(Value)) {
         if (value) |item| try encodeField(w, item, desc, desc_namespace);
     } else {
@@ -84,7 +84,7 @@ fn writeBytes(w: *Io.Writer, bytes: []const u8) !void {
 }
 
 fn isRepeated(comptime T: type) bool {
-    return T != []const u8 and (comptime std.meta.activeTag(@typeInfo(T))) == .pointer;
+    return T != []const u8 and comptime std.mem.startsWith(u8, @typeName(T), "array_list.Aligned");
 }
 
 fn isOptional(comptime T: type) bool {
@@ -149,12 +149,16 @@ pub fn decodeMessage(r: *Io.Reader, allocator: Allocator, comptime Message: type
                     const xor = @field(message_desc, field.name ++ "_field_desc").@"1";
 
                     if (comptime isRepeated(field.type)) {
-                        const slice = try decodeField(r, allocator, field.type, wire_type, xor, desc_namespace);
-                        const old_slice = @field(message, field.name);
-                        const new_slice = try allocator.alloc(std.meta.Child(field.type), old_slice.len + slice.len);
-                        @memcpy(new_slice[0..old_slice.len], old_slice);
-                        @memcpy(new_slice[old_slice.len..], slice);
-                        @field(message, field.name) = new_slice;
+                        const Child = std.meta.Child(field.type.Slice);
+                        if ((comptime WireType.of(Child) != .length_prefixed) and wire_type == .length_prefixed) {
+                            const length = try readVarInt(r, usize); // packed list of scalar values
+                            var reader = Io.Reader.fixed(try r.take(length));
+                            while (decodeField(&reader, allocator, Child, .of(Child), xor, desc_namespace) catch null) |value|
+                                try @field(message, field.name).append(allocator, value);
+                        } else {
+                            const item = try decodeField(r, allocator, Child, wire_type, xor, desc_namespace);
+                            try @field(message, field.name).append(allocator, item);
+                        }
                     } else {
                         @field(message, field.name) = try decodeField(r, allocator, field.type, wire_type, xor, desc_namespace);
                     }
@@ -167,18 +171,7 @@ pub fn decodeMessage(r: *Io.Reader, allocator: Allocator, comptime Message: type
 }
 
 fn decodeField(r: *Io.Reader, allocator: Allocator, comptime T: type, wire_type: WireType, xor: u32, comptime desc_namespace: type) !T {
-    if (comptime isRepeated(T)) {
-        const Child = std.meta.Child(T);
-        var list: std.ArrayList(Child) = try .initCapacity(allocator, 1);
-        if ((comptime WireType.of(Child) != .length_prefixed) and wire_type == .length_prefixed) {
-            const length = try readVarInt(r, usize); // packed list of scalar values
-            var reader = Io.Reader.fixed(try r.take(length));
-            while (decodeField(&reader, allocator, Child, .of(Child), xor, desc_namespace) catch null) |value| {
-                try list.append(allocator, value);
-            }
-        } else list.appendAssumeCapacity(try decodeField(r, allocator, Child, wire_type, xor, desc_namespace));
-        return list.items;
-    } else if (comptime isOptional(T))
+    if (comptime isOptional(T))
         return try decodeField(r, allocator, std.meta.Child(T), wire_type, xor, desc_namespace)
     else if (T == []const u8)
         return try r.readAlloc(allocator, try readVarInt(r, usize))

@@ -1,14 +1,20 @@
 const std = @import("std");
 const pb = @import("proto").pb;
 const network = @import("../network.zig");
+const State = @import("../network/State.zig");
+const Memory = State.Memory;
+const PlayerItemComponent = @import("../logic/component/player/PlayerItemComponent.zig");
 
-pub fn onGetItemDataCsReq(context: *network.Context, _: pb.GetItemDataCsReq) !void {
-    errdefer context.respond(pb.GetItemDataScRsp{ .retcode = 1 }) catch {};
-    const player = try context.connection.getPlayer();
+pub fn onGetItemDataCsReq(
+    txn: *network.Transaction(pb.GetItemDataCsReq),
+    mem: Memory,
+    item_comp: *PlayerItemComponent,
+) !void {
+    errdefer txn.respond(.{ .retcode = 1 }) catch {};
 
-    var material_list = try context.arena.alloc(pb.MaterialInfo, player.material_map.count());
+    var material_list = try mem.arena.alloc(pb.MaterialInfo, item_comp.material_map.count());
     var i: usize = 0;
-    var iterator = player.material_map.iterator();
+    var iterator = item_comp.material_map.iterator();
 
     while (iterator.next()) |kv| : (i += 1) {
         material_list[i] = .{
@@ -17,43 +23,43 @@ pub fn onGetItemDataCsReq(context: *network.Context, _: pb.GetItemDataCsReq) !vo
         };
     }
 
-    try context.respond(pb.GetItemDataScRsp{ .material_list = material_list });
+    try txn.respond(.{ .material_list = .fromOwnedSlice(material_list) });
 }
 
-pub fn onGetWeaponDataCsReq(context: *network.Context, _: pb.GetWeaponDataCsReq) !void {
-    errdefer context.respond(pb.GetWeaponDataScRsp{ .retcode = 1 }) catch {};
-    const player = try context.connection.getPlayer();
+pub fn onGetWeaponDataCsReq(
+    txn: *network.Transaction(pb.GetWeaponDataCsReq),
+    mem: Memory,
+    item_comp: *PlayerItemComponent,
+) !void {
+    errdefer txn.respond(.{ .retcode = 1 }) catch {};
 
-    const weapon_list = try context.arena.alloc(pb.WeaponInfo, player.weapon_map.count());
+    const weapon_list = try mem.arena.alloc(pb.WeaponInfo, item_comp.weapon_map.count());
     var i: usize = 0;
-    var iterator = player.weapon_map.iterator();
+    var iterator = item_comp.weapon_map.iterator();
     while (iterator.next()) |kv| : (i += 1) {
-        weapon_list[i] = try kv.value_ptr.toProto(kv.key_ptr.*, context.arena);
+        weapon_list[i] = try kv.value_ptr.toProto(kv.key_ptr.*, mem.arena);
     }
 
-    try context.respond(pb.GetWeaponDataScRsp{
-        .retcode = 0,
-        .weapon_list = weapon_list,
-    });
+    try txn.respond(.{ .weapon_list = .fromOwnedSlice(weapon_list) });
 }
 
-pub fn onGetEquipDataCsReq(context: *network.Context, _: pb.GetEquipDataCsReq) !void {
-    errdefer context.respond(pb.GetEquipDataScRsp{ .retcode = 1 }) catch {};
-    const player = try context.connection.getPlayer();
+pub fn onGetEquipDataCsReq(
+    txn: *network.Transaction(pb.GetEquipDataCsReq),
+    mem: Memory,
+    item_comp: *PlayerItemComponent,
+) !void {
+    errdefer txn.respond(.{ .retcode = 1 }) catch {};
 
-    const equip_list = try context.arena.alloc(pb.EquipInfo, player.equip_map.count());
+    const equip_list = try mem.arena.alloc(pb.EquipInfo, item_comp.equip_map.count());
     var i: usize = 0;
-    var iterator = player.equip_map.iterator();
+    var iterator = item_comp.equip_map.iterator();
     while (iterator.next()) |kv| : (i += 1) {
-        equip_list[i] = try kv.value_ptr.toProto(kv.key_ptr.*, context.arena);
+        equip_list[i] = try kv.value_ptr.toProto(kv.key_ptr.*, mem.arena);
     }
 
-    try context.respond(pb.GetEquipDataScRsp{
-        .retcode = 0,
-        .equip_list = equip_list,
-    });
+    try txn.respond(.{ .equip_list = .fromOwnedSlice(equip_list) });
 }
 
-pub fn onGetWishlistDataCsReq(context: *network.Context, _: pb.GetWishlistDataCsReq) !void {
-    try context.respond(pb.GetWishlistDataScRsp{});
+pub fn onGetWishlistDataCsReq(txn: *network.Transaction(pb.GetWishlistDataCsReq)) !void {
+    try txn.respond(.{ .retcode = 0 });
 }
