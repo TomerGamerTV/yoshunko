@@ -30,6 +30,7 @@ mode_manager: ModeManager = .{},
 dungeon: ?Dungeon = null,
 
 pub fn deinit(state: *State, gpa: Allocator) void {
+    state.mode_manager.deinit(gpa);
     if (state.dungeon) |*d| d.deinit(gpa);
 }
 

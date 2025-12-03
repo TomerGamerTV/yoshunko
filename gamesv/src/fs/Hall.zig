@@ -69,7 +69,9 @@ pub const Npc = struct {
     interacts: [2]?Interact = @splat(null),
 
     pub fn deinit(npc: Npc, gpa: Allocator) void {
-        std.zon.parse.free(gpa, npc);
+        for (npc.interacts) |maybe_interact| if (maybe_interact) |interact| {
+            interact.deinit(gpa);
+        };
     }
 
     pub fn toProto(npc: Npc, arena: Allocator, id: u32) !pb.NpcInfo {
@@ -129,7 +131,11 @@ pub const Interact = struct {
     name: []const u8,
     scale: [5]f64,
 
-    pub fn deinit(interact: *Interact, gpa: Allocator) void {
+    pub fn deinit(interact: Interact, gpa: Allocator) void {
+        for (interact.participators) |participator| {
+            gpa.free(participator.name);
+        }
+
         gpa.free(interact.name);
         gpa.free(interact.participators);
     }

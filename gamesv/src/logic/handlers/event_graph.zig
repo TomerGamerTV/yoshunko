@@ -51,6 +51,10 @@ pub fn startHallEvent(
                             };
                         }
 
+                        if (mode.npcs.fetchSwapRemove(config.tag_id)) |prev_npc| {
+                            prev_npc.value.deinit(mem.gpa);
+                        }
+
                         try mode.npcs.put(mem.gpa, config.tag_id, npc);
                         try events.enqueue(.npc_modified, .{ .npc_tag_id = config.tag_id });
                     },
