@@ -21,7 +21,7 @@ const log = std.log.scoped(.network);
 pub fn onConnect(gpa: Allocator, io: Io, fs: *FileSystem, assets: *const Assets, stream: Io.net.Stream) void {
     if (processConnection(gpa, io, fs, assets, stream)) {
         log.debug("connection from {f} disconnected", .{stream.socket.address});
-    } else |err| {
+    } else |err| if (err != error.Canceled) {
         log.debug("connection from {f} disconnected due to an error: {t}", .{ stream.socket.address, err });
     }
 }
