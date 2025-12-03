@@ -6,6 +6,7 @@ pub const var_set = @import("var_set.zig");
 pub const FileSystem = @import("FileSystem.zig");
 pub const rsa = @import("rsa.zig");
 pub const random = @import("random.zig");
+pub const zigaction = @import("zigaction.zig");
 
 pub const Gateway = struct {
     title: []const u8,
@@ -33,10 +34,10 @@ pub const Version = struct {
 pub fn printSplash() void {
     var stderr = std.fs.File.stderr().writer("");
     stderr.interface.writeAll(
-        \\ __  ______  ______ ____  ___  ____ ______ 
+        \\ __  ______  ______ ____  ___  ____ ______
         \\ \ \/ / __ \/ __/ // / / / / |/ / //_/ __ \
         \\  \  / /_/ /\ \/ _  / /_/ /    / ,< / /_/ /
-        \\  /_/\____/___/_//_/\____/_/|_/_/|_|\____/ 
+        \\  /_/\____/___/_//_/\____/_/|_/_/|_|\____/
         \\
     ) catch {};
 }

@@ -7,6 +7,7 @@ const native_os = @import("builtin").os.tag;
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const FileSystem = common.FileSystem;
+const zigaction = common.zigaction;
 
 const Args = struct {
     gateway_name: []const u8 = "yoshunko",
@@ -61,12 +62,26 @@ fn init(gpa: Allocator, io: Io) u8 {
     var client_group: Io.Group = .init;
     defer client_group.cancel(io);
 
-    while (!io.cancelRequested()) {
-        const stream = server.accept(io) catch continue;
+    var sigint = zigaction.Handler(.INT).wait(io);
 
-        const client_args = .{ gpa, io, &fs, &assets, stream };
-        client_group.concurrent(io, network.onConnect, client_args) catch
-            client_group.async(io, network.onConnect, client_args);
+    while (!io.cancelRequested()) {
+        var accept = io.concurrent(Io.net.Server.accept, .{ &server, io }) catch
+            io.async(Io.net.Server.accept, .{ &server, io });
+
+        switch (io.select(.{ .accept = &accept, .sigint = &sigint }) catch break) {
+            .accept => |fallible| {
+                const stream = fallible catch continue;
+                const client_args = .{ gpa, io, &fs, &assets, stream };
+                client_group.concurrent(io, network.onConnect, client_args) catch
+                    client_group.async(io, network.onConnect, client_args);
+            },
+            .sigint => {
+                log.info("shutting down...", .{});
+                if (accept.cancel(io)) |stream| stream.close(io) else |_| {}
+
+                break;
+            },
+        }
     }
 
     return 0;
