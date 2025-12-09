@@ -31,7 +31,7 @@ pub const desc_common = struct {
     };
 
     pub const DummyMessage = struct {
-        pub const cmd_id: u16 = 3907;
+        pub const cmd_id: u16 = 8119;
     };
 };
 
@@ -521,7 +521,7 @@ pub const BuddyUnitType = enum(i32) {
     BuddyUnitType_LFCCEIIGDCM = 0,
     BuddyUnitType_NALGPOCOJJJ = 1,
     fighting = 2,
-   	assisting = 3,
+    assisting = 3,
 };
 pub const NBHKCOIMDJB = struct {
     pub const default: @This() = .{};

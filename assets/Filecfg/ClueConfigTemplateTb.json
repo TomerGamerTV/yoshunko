@@ -645,6 +645,20 @@
       "unk_9": 0
     },
     {
+      "id": 1049,
+      "name": "ClueName_1049",
+      "unk_1": 2,
+      "unk_2": "",
+      "item_prefab_path": "Assets/NapResources/UI/3D/Clue/QuestItem_Story_0049.prefab",
+      "unk_4": 0,
+      "unk_5": 1,
+      "unlock_condition": "1040140883",
+      "unk_7": 1013,
+      "clue_des": "ClueDesc_1049",
+      "unk_8": 0,
+      "unk_9": 0
+    },
+    {
       "id": 104101,
       "name": "ClueName_104101",
       "unk_1": 2,
@@ -1523,6 +1537,20 @@
       "unlock_condition": "",
       "unk_7": 30004,
       "clue_des": "ClueDesc_310127",
+      "unk_8": 0,
+      "unk_9": 0
+    },
+    {
+      "id": 310129,
+      "name": "ClueName_310129",
+      "unk_1": 2,
+      "unk_2": "",
+      "item_prefab_path": "Assets/NapResources/UI/3D/Clue/QuestItem_Activity_0023.prefab",
+      "unk_4": 0,
+      "unk_5": 0,
+      "unlock_condition": "",
+      "unk_7": 30004,
+      "clue_des": "ClueDesc_310129",
       "unk_8": 0,
       "unk_9": 0
     }

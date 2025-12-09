@@ -1980,6 +1980,7 @@
       ],
       "unk_70": [
         2,
+        7,
         8
       ],
       "weapon_type": 3,
@@ -2002,9 +2003,9 @@
       "rp_max": 0,
       "rp_recover": 0,
       "unk_83": [
-        2052,
-        5512,
-        292
+        2056,
+        5516,
+        296
       ],
       "awake_ids": [
         118100,
@@ -2127,9 +2128,9 @@
       "rp_max": 0,
       "rp_recover": 0,
       "unk_83": [
-        3808,
-        1744,
-        4276
+        3816,
+        1752,
+        4284
       ],
       "awake_ids": [
         119100,
@@ -3670,7 +3671,7 @@
         "Cut",
         "Ice",
         "Female",
-        "Camp0",
+        "Camp12",
         "Size0",
         "AidTypeParry",
         "XiaoZhao",
@@ -3695,7 +3696,7 @@
       "unk_element_camp": [
         "3:1:1",
         "3:3:1",
-        "3:6:1"
+        "3:4:1"
       ],
       "unk_75": 0,
       "unk_76": 5000,
@@ -4675,9 +4676,9 @@
       "tags": [
         "Zhenzhen",
         "Cut",
-        "Electric",
+        "Physics",
         "Female",
-        "Camp1",
+        "Camp10",
         "Size2",
         "AidTypeParry",
         "Zhenzhen",
@@ -8463,6 +8464,7 @@
       ],
       "unk_70": [
         2,
+        7,
         8
       ],
       "weapon_type": 3,
@@ -8485,9 +8487,9 @@
       "rp_max": 0,
       "rp_recover": 0,
       "unk_83": [
-        18244,
-        21704,
-        16484
+        18228,
+        21688,
+        16468
       ],
       "awake_ids": [
         118100,
@@ -8610,9 +8612,9 @@
       "rp_max": 0,
       "rp_recover": 0,
       "unk_83": [
-        19964,
-        17900,
-        20432
+        19948,
+        17884,
+        20416
       ],
       "awake_ids": [
         119100,
@@ -8735,9 +8737,9 @@
       "rp_max": 0,
       "rp_recover": 0,
       "unk_83": [
-        20388,
-        18324,
-        20856
+        20372,
+        18308,
+        20840
       ],
       "awake_ids": [
         119100,
@@ -10502,7 +10504,7 @@
         "Cut",
         "Ice",
         "Female",
-        "Camp0",
+        "Camp12",
         "Size0",
         "AidTypeParry",
         "XiaoZhao",
@@ -10527,7 +10529,7 @@
       "unk_element_camp": [
         "3:1:1",
         "3:3:1",
-        "3:6:1"
+        "3:4:1"
       ],
       "unk_75": 0,
       "unk_76": 5000,
@@ -11844,9 +11846,9 @@
       "tags": [
         "Zhenzhen",
         "Cut",
-        "Electric",
+        "Physics",
         "Female",
-        "Camp1",
+        "Camp10",
         "Size2",
         "AidTypeParry",
         "Zhenzhen",
@@ -11948,7 +11950,7 @@
       "unk_59": 0,
       "unk_60": 2935218216,
       "unk_61": 4177921399,
-      "unk_62": 4177921399,
+      "unk_62": 3180501807,
       "unk_63": 0,
       "unk_64": 0,
       "unk_65": 0,
@@ -11956,9 +11958,9 @@
       "tags": [
         "Zhenzhen",
         "Cut",
-        "Electric",
+        "Physics",
         "Female",
-        "Camp1",
+        "Camp10",
         "Size2",
         "AidTypeParry",
         "Zhenzhen",
