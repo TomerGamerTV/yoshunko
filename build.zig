@@ -25,7 +25,7 @@ pub fn build(b: *std.Build) void {
         const run_proto_gen = b.addRunArtifact(proto_gen);
         run_proto_gen.expectExitCode(0);
         run_proto_gen.setStdIn(.{ .lazy_path = b.path("proto/pb/nap.proto") });
-        const pb_gen = run_proto_gen.captureStdOut(.{ .basename = "nap_generated.zig" });
+        const pb_gen = run_proto_gen.captureStdOut();
         update_src.addCopyFileToSource(pb_gen, "proto/src/nap_generated.zig");
     } else |_| {}
 

@@ -24,35 +24,33 @@ pub fn process(arena: Allocator, writer: *Io.Writer, fs: *FileSystem, request: R
 
     const version = maybe_version orelse return;
 
-    if (try fs.readDir("gateway")) |gateway_dir| {
-        defer gateway_dir.deinit();
-        var region_list: std.ArrayList(ServerListInfo) = .empty;
-
-        for (gateway_dir.entries) |entry| {
-            const content = try fs.readFile(arena, entry.path) orelse continue;
-            const var_set = try common.var_set.readVarSet(common.Gateway, arena, content) orelse continue;
-
+    // Hardcoded check for yoshunko to avoid readDir flakiness
+    var region_list: std.ArrayList(ServerListInfo) = .empty;
+    const name = "yoshunko";
+    if (try fs.readFile(arena, "gateway/yoshunko")) |content| {
+        if (try common.var_set.readVarSet(common.Gateway, arena, content)) |var_set| {
             const gateway = var_set.data;
-            const name = entry.basename();
-
+            log.info("checking gateway {s}", .{name});
             for (gateway.versions) |allowed_version| {
-                if (std.mem.eql(u8, allowed_version, version)) break;
-            } else continue;
-
-            try region_list.append(arena, .{
-                .name = name,
-                .title = gateway.title,
-                .dispatch_url = gateway.dispatch_url,
-            });
+                log.info("  allowed version: '{s}' vs requested: '{s}'", .{ allowed_version, version });
+                if (std.mem.eql(u8, allowed_version, version)) {
+                    try region_list.append(arena, .{
+                        .name = name,
+                        .title = gateway.title,
+                        .dispatch_url = gateway.dispatch_url,
+                    });
+                    break;
+                }
+            }
         }
+    }
 
-        if (region_list.items.len != 0) {
-            try Response.ok.respondWithJson(writer, .{
-                .retcode = 0,
-                .region_list = region_list.items,
-            });
-            return;
-        }
+    if (region_list.items.len != 0) {
+        try Response.ok.respondWithJson(writer, .{
+            .retcode = 0,
+            .region_list = region_list.items,
+        });
+        return;
     }
 
     log.warn("no servers found for version '{s}'", .{version});

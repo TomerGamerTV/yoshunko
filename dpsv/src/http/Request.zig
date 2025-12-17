@@ -2,7 +2,7 @@ const Request = @This();
 const std = @import("std");
 const Io = std.Io;
 
-pub const Method = enum { GET };
+pub const Method = enum { GET, HEAD };
 
 method: Method,
 path: []const u8 = "",

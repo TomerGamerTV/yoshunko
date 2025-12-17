@@ -3,3 +3,6 @@ zig-out/
 
 /proto/pb/
 /proto/pb/*.proto
+
+state/
+

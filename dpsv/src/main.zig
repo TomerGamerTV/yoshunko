@@ -10,7 +10,7 @@ const zigaction = common.zigaction;
 
 const Args = struct {
     state_dir: []const u8 = "state",
-    listen_address: []const u8 = "127.0.0.1:10100",
+    listen_address: []const u8 = "0.0.0.0:10100",
 };
 
 fn init(gpa: Allocator, io: Io) u8 {
@@ -34,6 +34,13 @@ fn init(gpa: Allocator, io: Io) u8 {
         log.err("failed to open filesystem at '{s}': {t}", .{ args.state_dir, err });
         return 1;
     };
+
+    var buf: [4096]u8 = undefined;
+    if (std.fs.cwd().realpath(args.state_dir, &buf)) |path| {
+        log.info("using state directory: {s}", .{path});
+    } else |_| {
+        log.info("using state directory (relative): {s}", .{args.state_dir});
+    }
 
     defer fs.deinit();
 

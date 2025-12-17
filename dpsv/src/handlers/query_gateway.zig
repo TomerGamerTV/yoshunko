@@ -30,9 +30,10 @@ pub fn process(arena: Allocator, writer: *Io.Writer, fs: *FileSystem, request: R
     const version = maybe_version orelse return error.MissingVersionParameter;
     const rsa_ver = maybe_rsa_ver orelse return error.MissionRsaVerParameter;
     const gateway_name = request.lastPathSegment();
+    log.info("looking for gateway file: gateway/{s}", .{gateway_name});
 
     const gateway_content = try fs.readFile(arena, try std.fmt.allocPrint(arena, "gateway/{s}", .{gateway_name})) orelse {
-        log.warn("requested gateway '{s}' doesn't exist", .{gateway_name});
+        log.warn("requested gateway '{s}' doesn't exist (file not found)", .{gateway_name});
         return error.MissingGatewayRequested;
     };
 
