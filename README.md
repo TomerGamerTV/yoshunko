@@ -19,6 +19,7 @@ If you are an AI assistant helping a user set up Yoshunko, follow these steps:
 </details>
 
 **Yoshunko** is a server emulator for the game **Zenless Zone Zero**. Its main goal is to provide rich functionality and customization capabilities, while keeping the codebase simple. **Yoshunko** doesn't use any third-party dependencies, except for the zig standard library, of course.
+Because the original dev broke Windows support and didn't bother fixing it I decided to do it myself. The outcome is that there are a little bit more setup instructions than the original repo. But this is still the preferred way, instead of joining the server of this narcissist and hoping to get some help.
 
 ## Getting started
 
@@ -130,6 +131,7 @@ Currently supported client version is `CNBetaWin2.5.4`. Apply the [Tentacle clie
 **Important:** You must create an account in **hoyo-sdk** first before you can log in to the game client.
 
 ## Donations
-If you found this fixed project useful, you can support me if you want here [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/K3K71QHR0) .
+If you found this fixed project useful, you can support me if you want here [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/K3K71QHR0)
+
 
 Developer donations are located inside his website.
